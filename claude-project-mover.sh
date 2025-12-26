@@ -89,7 +89,8 @@ backup_project() {
     local timestamp=$(date +"%Y%m%d_%H%M%S")
 
     local backup_name="BACKUP__${folder_name}__${timestamp}.tar.gz"
-    tar -czf "$PROJECTS_DIR/$backup_name" -C "$PROJECTS_DIR" "$folder_name"
+    # Use -- to prevent folder name starting with - being interpreted as flag
+    tar -czf "$PROJECTS_DIR/$backup_name" -C "$PROJECTS_DIR" -- "$folder_name"
 
     echo "$PROJECTS_DIR/$backup_name"
 }
@@ -115,7 +116,7 @@ move_project() {
     local old_escaped=$(printf '%s\n' "$old_path" | sed 's/[[\.*^$()+?{|]/\\&/g')
     local new_escaped=$(printf '%s\n' "$new_path" | sed 's/[&/\]/\\&/g')
 
-    echo -e "${YELLOW}Replacing paths in files...${NC}"
+    echo -e "${YELLOW}Replacing paths in files...${NC}" >&2
 
     # Replace paths in all files
     for file in "$old_full_path"/*; do
@@ -124,7 +125,7 @@ move_project() {
         fi
     done
 
-    echo -e "${YELLOW}Renaming folder...${NC}"
+    echo -e "${YELLOW}Renaming folder...${NC}" >&2
 
     # Rename folder
     mv "$old_full_path" "$new_full_path"
@@ -152,7 +153,9 @@ main() {
         exit 1
     fi
 
-    echo -e "Found ${BLUE}$total${NC} projects:\n"
+    echo -e "${BLUE}Select a project to update${NC}"
+    echo -e "${BLUE}──────────────────────────${NC}"
+    echo ""
 
     # List projects
     list_projects
@@ -161,7 +164,7 @@ main() {
 
     # Get user selection
     while true; do
-        read -p "Select project number (1-$total): " selection
+        read -p "Enter project number (1-$total): " selection
         if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "$total" ]]; then
             break
         fi
@@ -172,12 +175,14 @@ main() {
     local selected_path=$(get_readable_path "$selected_folder")
 
     echo ""
-    echo -e "Selected: ${BLUE}$selected_path${NC}"
     echo ""
+    echo -e "${BLUE}Enter the new project location${NC}"
+    echo -e "${BLUE}───────────────────────────────${NC}"
+    echo -e "  Current: ${YELLOW}$selected_path${NC}"
 
     # Get new path
     while true; do
-        read -p "Enter new path: " new_path
+        read -p "  New path: " new_path
 
         # Validate path
         if [[ -z "$new_path" ]]; then
@@ -193,27 +198,40 @@ main() {
         # Remove trailing slash if present
         new_path="${new_path%/}"
 
+        # Check if destination folder exists
+        if [[ ! -d "$new_path" ]]; then
+            echo -e "${RED}Folder does not exist: $new_path${NC}"
+            echo -e "${YELLOW}Make sure you move your project folder first, then run this script.${NC}"
+            continue
+        fi
+
         break
     done
 
     echo ""
-    echo -e "Moving: ${YELLOW}$selected_path${NC}"
+    echo ""
+    echo -e "${BLUE}Path references will be updated${NC}"
+    echo -e "${BLUE}────────────────────────────────${NC}"
+    echo -e "  From: ${YELLOW}$selected_path${NC}"
     echo -e "    To: ${GREEN}$new_path${NC}"
     echo ""
 
     # Ask about backup
-    read -p "Create backup before moving? (y/n): " do_backup
+    echo ""
+    echo -e "${BLUE}Backup${NC}"
+    echo -e "${BLUE}──────${NC}"
+    read -p "Create backup? (y/n): " do_backup
 
     if [[ "$do_backup" =~ ^[Yy]$ ]]; then
-        echo ""
-        echo -e "${YELLOW}Creating backup...${NC}"
         backup_path=$(backup_project "$selected_folder")
-        echo -e "${GREEN}Backup created at: $backup_path${NC}"
-        echo ""
+        echo -e "  ${GREEN}$backup_path${NC}"
     fi
 
     # Confirm action
-    read -p "Proceed with move? (y/n): " confirm
+    echo ""
+    echo -e "${BLUE}Confirm${NC}"
+    echo -e "${BLUE}───────${NC}"
+    read -p "Proceed with update? (y/n): " confirm
 
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}Operation cancelled.${NC}"
@@ -225,12 +243,12 @@ main() {
     # Perform move
     new_folder_path=$(move_project "$selected_folder" "$new_path")
 
-    echo ""
     echo -e "${GREEN}================================${NC}"
     echo -e "${GREEN}  Project moved successfully!${NC}"
     echo -e "${GREEN}================================${NC}"
+    echo -e "  ${BLUE}$new_folder_path${NC}"
     echo ""
-    echo -e "New location: ${BLUE}$new_folder_path${NC}"
+    echo ""
 }
 
 main "$@"

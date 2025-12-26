@@ -8,17 +8,15 @@ Claude Code stores project data in `~/.claude/projects/` using folder names deri
 
 ## Usage
 
-```bash
-./claude-project-mover.sh
-```
+**Important:** This script only updates Claude Code's metadata. You must move your project folder first, then run this script to update the reference.
 
-The script will:
-
-1. List all your Claude Code projects
-2. Let you pick one by number
-3. Ask for the new path
-4. Optionally create a backup
-5. Update all references and rename the folder
+1. Move your project folder to the new location
+2. Run the script:
+   ```bash
+   ./claude-project-mover.sh
+   ```
+3. Select the project and enter the new path
+4. The script validates the destination folder exists before proceeding
 
 ## What it does
 
