@@ -6,7 +6,6 @@
 set -e
 
 PROJECTS_DIR="$HOME/.claude/projects"
-BACKUP_DIR="$HOME/.claude/projects-backup"
 
 # Colors for output
 RED='\033[0;31m'
@@ -84,17 +83,15 @@ count_projects() {
     echo "$count"
 }
 
-# Backup a project folder
+# Backup a project folder as .tar.gz
 backup_project() {
     local folder_name="$1"
     local timestamp=$(date +"%Y%m%d_%H%M%S")
 
-    mkdir -p "$BACKUP_DIR"
+    local backup_name="BACKUP__${folder_name}__${timestamp}.tar.gz"
+    tar -czf "$PROJECTS_DIR/$backup_name" -C "$PROJECTS_DIR" "$folder_name"
 
-    local backup_name="${folder_name}_backup_${timestamp}"
-    cp -r "$PROJECTS_DIR/$folder_name" "$BACKUP_DIR/$backup_name"
-
-    echo "$BACKUP_DIR/$backup_name"
+    echo "$PROJECTS_DIR/$backup_name"
 }
 
 # Move project to new path
