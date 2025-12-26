@@ -15,18 +15,33 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Convert folder name to readable path
-# -Users-martin-foo -> /Users/martin/foo
+# Get the actual path from .jsonl files (reads cwd field)
 get_readable_path() {
     local folder_name="$1"
-    echo "$folder_name" | sed 's/^-/\//' | sed 's/-/\//g'
+    local folder_path="$PROJECTS_DIR/$folder_name"
+
+    # Find first .jsonl file and extract cwd
+    for file in "$folder_path"/*.jsonl; do
+        if [[ -f "$file" ]]; then
+            local cwd=$(grep -o '"cwd":"[^"]*"' "$file" 2>/dev/null | head -1 | sed 's/"cwd":"//;s/"$//')
+            if [[ -n "$cwd" ]]; then
+                echo "$cwd"
+                return 0
+            fi
+        fi
+    done
+
+    # Fallback: decode from folder name if no cwd found
+    echo "$folder_name" | sed 's/^-/\//' | sed 's/--/\/./g' | sed 's/-/\//g'
 }
 
 # Convert path to folder name
 # /Users/martin/foo -> -Users-martin-foo
+# /Users/martin/.config/omp -> -Users-martin--config-omp (dot = double dash)
 get_folder_name() {
     local path="$1"
-    echo "$path" | sed 's/\//-/g'
+    # First replace /. with -- (dot folders), then replace remaining / with -
+    echo "$path" | sed 's/\/\./--%/g' | sed 's/\//-/g' | sed 's/%//g'
 }
 
 # List all projects with numbers
