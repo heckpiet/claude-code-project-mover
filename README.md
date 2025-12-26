@@ -1,6 +1,6 @@
 # Claude Code Project Mover
 
-A bash script to relocate Claude Code projects when you move a project folder to a new location.
+A bash script to update Claude Code's project references after moving a folder to a new path.
 
 ## Why?
 
