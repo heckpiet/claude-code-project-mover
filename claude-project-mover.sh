@@ -135,9 +135,9 @@ move_project() {
 
 # Main script
 main() {
-    echo -e "${GREEN}================================${NC}"
-    echo -e "${GREEN}  Claude Code Project Mover${NC}"
-    echo -e "${GREEN}================================${NC}"
+    echo -e "${GREEN}=======================================${NC}"
+    echo -e "${GREEN}  Claude Code Project Mover v1.0.0${NC}"
+    echo -e "${GREEN}=======================================${NC}"
     echo ""
 
     # Check if projects directory exists
