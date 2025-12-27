@@ -140,7 +140,7 @@ move_project() {
 # Main script
 main() {
     echo -e "${GREEN}=======================================${NC}"
-    echo -e "${GREEN}  Claude Code Project Mover v1.0.0${NC}"
+    echo -e "${GREEN}  Claude Code Project Mover v1.0.1${NC}"
     echo -e "${GREEN}=======================================${NC}"
     echo ""
 
@@ -245,12 +245,12 @@ main() {
     echo ""
 
     # Perform move
-    new_folder_path=$(move_project "$selected_folder" "$new_path")
+    move_project "$selected_folder" "$new_path" > /dev/null
 
-    echo -e "${GREEN}================================${NC}"
-    echo -e "${GREEN}  Project moved successfully!${NC}"
-    echo -e "${GREEN}================================${NC}"
-    echo -e "  ${BLUE}$new_folder_path${NC}"
+    echo -e "${GREEN}=====================================${NC}"
+    echo -e "${GREEN}  Project updated successfully!${NC}"
+    echo -e "${GREEN}=====================================${NC}"
+    echo -e "  ${BLUE}$new_path${NC}"
     echo ""
     echo ""
 }
