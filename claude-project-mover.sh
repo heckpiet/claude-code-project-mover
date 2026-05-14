@@ -118,14 +118,17 @@ move_project() {
 
     echo -e "${YELLOW}Replacing paths in files...${NC}" >&2
 
+    # Detect sed flavor once (GNU sed: -i; BSD sed: -i '')
+    if sed --version 2>&1 | grep -q GNU; then
+        sed_inplace=(sed -i)
+    else
+        sed_inplace=(sed -i '')
+    fi
+
     # Replace paths in all files
     for file in "$old_full_path"/*; do
         if [[ -f "$file" ]]; then
-            if sed --version 2>&1 | grep -q GNU; then
-                sed -i "s|$old_escaped|$new_escaped|g" "$file"
-            else
-                sed -i '' "s|$old_escaped|$new_escaped|g" "$file"
-            fi
+            "${sed_inplace[@]}" "s|$old_escaped|$new_escaped|g" "$file"
         fi
     done
 
