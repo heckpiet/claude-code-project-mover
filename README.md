@@ -18,6 +18,8 @@ Claude Code stores project data in `~/.claude/projects/` using folder names deri
 3. Select the project and enter the new path
 4. The script validates the destination folder exists before proceeding
 
+If [`fzf`](https://github.com/junegunn/fzf) is installed, project selection switches to a fuzzy finder; otherwise a numbered list prompt is used.
+
 ## What it does
 
 - Renames the project folder in `~/.claude/projects/`
@@ -37,3 +39,4 @@ chmod +x claude-project-mover.sh
 
 - macOS or Linux with Bash
 - Claude Code installed (`~/.claude/projects/` must exist)
+- Optional: [`fzf`](https://github.com/junegunn/fzf) for fuzzy project selection

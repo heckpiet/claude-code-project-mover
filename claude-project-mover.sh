@@ -56,6 +56,17 @@ list_projects() {
     done
 }
 
+# Emit "folder_name<TAB>readable_path" per project (machine-readable)
+list_projects_data() {
+    for dir in "$PROJECTS_DIR"/-*/; do
+        if [[ -d "$dir" ]]; then
+            local folder_name=$(basename "$dir")
+            local readable_path=$(get_readable_path "$folder_name")
+            printf '%s\t%s\n' "$folder_name" "$readable_path"
+        fi
+    done
+}
+
 # Get project folder by index
 get_project_by_index() {
     local index="$1"
@@ -143,7 +154,7 @@ move_project() {
 # Main script
 main() {
     echo -e "${GREEN}=======================================${NC}"
-    echo -e "${GREEN}  Claude Code Project Mover v1.0.1${NC}"
+    echo -e "${GREEN}  Claude Code Project Mover v1.1.0${NC}"
     echo -e "${GREEN}=======================================${NC}"
     echo ""
 
@@ -164,21 +175,34 @@ main() {
     echo -e "${BLUE}──────────────────────────${NC}"
     echo ""
 
-    # List projects
-    list_projects
+    local selected_folder
+    if command -v fzf >/dev/null 2>&1; then
+        selected_folder=$(list_projects_data \
+            | fzf --delimiter=$'\t' --with-nth=2 \
+                  --prompt='Search project: ' --height=40% --reverse \
+                  --header='Type to filter, Enter to select, Esc to cancel' \
+            | cut -f1)
 
-    echo ""
-
-    # Get user selection
-    while true; do
-        read -p "Enter project number (1-$total): " selection
-        if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "$total" ]]; then
-            break
+        if [[ -z "$selected_folder" ]]; then
+            echo -e "${YELLOW}No project selected.${NC}"
+            exit 0
         fi
-        echo -e "${RED}Invalid selection. Please enter a number between 1 and $total.${NC}"
-    done
+    else
+        list_projects
+        echo ""
 
-    local selected_folder=$(get_project_by_index "$selection")
+        local selection
+        while true; do
+            read -p "Enter project number (1-$total): " selection
+            if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "$total" ]]; then
+                break
+            fi
+            echo -e "${RED}Invalid selection. Please enter a number between 1 and $total.${NC}"
+        done
+
+        selected_folder=$(get_project_by_index "$selection")
+    fi
+
     local selected_path=$(get_readable_path "$selected_folder")
 
     echo ""
