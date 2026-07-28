@@ -1,6 +1,6 @@
 #requires -Version 5.1
 
-<#+
+<#
 .SYNOPSIS
 Updates Claude Code project references after a project folder has been moved.
 
@@ -77,10 +77,12 @@ function Normalize-ProjectPath {
     $expandedPath = [Environment]::ExpandEnvironmentVariables($Path.Trim())
     $fullPath = [System.IO.Path]::GetFullPath($expandedPath)
     $root = [System.IO.Path]::GetPathRoot($fullPath)
+    $directorySeparator = [string][System.IO.Path]::DirectorySeparatorChar
+    $alternateSeparator = [string][System.IO.Path]::AltDirectorySeparatorChar
 
     while ($fullPath.Length -gt $root.Length -and
-           ($fullPath.EndsWith([System.IO.Path]::DirectorySeparatorChar) -or
-            $fullPath.EndsWith([System.IO.Path]::AltDirectorySeparatorChar))) {
+           ($fullPath.EndsWith($directorySeparator) -or
+            $fullPath.EndsWith($alternateSeparator))) {
         $fullPath = $fullPath.Substring(0, $fullPath.Length - 1)
     }
 
@@ -97,6 +99,27 @@ function ConvertTo-ClaudeProjectFolderName {
     # C:\Users\Jane\Code\demo -> C--Users-Jane-Code-demo
     # /Users/jane/.config/demo -> -Users-jane--config-demo
     return [regex]::Replace($normalized, '[\\/:.]', '-')
+}
+
+function ConvertFrom-ClaudeProjectFolderName {
+    param([Parameter(Mandatory)][string]$FolderName)
+
+    if ($FolderName -match '^[A-Za-z]--') {
+        $drive = $FolderName.Substring(0, 1)
+        $remainder = $FolderName.Substring(3)
+        $remainder = $remainder.Replace('--', '\.')
+        $remainder = $remainder.Replace('-', '\')
+        return '{0}:\{1}' -f $drive, $remainder
+    }
+
+    if ($FolderName.StartsWith('-')) {
+        $remainder = $FolderName.Substring(1)
+        $remainder = $remainder.Replace('--', '/.')
+        $remainder = $remainder.Replace('-', '/')
+        return '/' + $remainder
+    }
+
+    return $FolderName
 }
 
 function Get-PathFromSessionFile {
@@ -123,9 +146,7 @@ function Get-PathFromSessionFile {
 }
 
 function Get-ReadableProjectPath {
-    param(
-        [Parameter(Mandatory)][System.IO.DirectoryInfo]$Directory
-    )
+    param([Parameter(Mandatory)][System.IO.DirectoryInfo]$Directory)
 
     $sessionFiles = Get-ChildItem -LiteralPath $Directory.FullName -File -Filter '*.jsonl' -Recurse -ErrorAction SilentlyContinue
     foreach ($file in $sessionFiles) {
@@ -135,7 +156,7 @@ function Get-ReadableProjectPath {
         }
     }
 
-    return $Directory.Name
+    return ConvertFrom-ClaudeProjectFolderName -FolderName $Directory.Name
 }
 
 function Get-ClaudeProjects {
@@ -187,16 +208,22 @@ function Find-ClaudeProject {
     $normalizedPath = Normalize-ProjectPath -Path $Path
     $folderName = ConvertTo-ClaudeProjectFolderName -Path $normalizedPath
 
-    $match = $Projects | Where-Object {
-        $_.FolderName -ceq $folderName -or
-        (try { (Normalize-ProjectPath -Path $_.Path) -ieq $normalizedPath } catch { $false })
-    } | Select-Object -First 1
+    foreach ($project in $Projects) {
+        if ($project.FolderName -ceq $folderName) {
+            return $project
+        }
 
-    if ($null -eq $match) {
-        throw "No Claude Code metadata was found for '$normalizedPath'."
+        try {
+            if ((Normalize-ProjectPath -Path $project.Path) -ieq $normalizedPath) {
+                return $project
+            }
+        }
+        catch {
+            # Ignore undecodable fallback folder names and continue searching.
+        }
     }
 
-    return $match
+    throw "No Claude Code metadata was found for '$normalizedPath'."
 }
 
 function New-ProjectBackup {
@@ -228,7 +255,6 @@ function Get-ReplacementPairs {
     )
 
     $pairs = [ordered]@{}
-
     $pairs[$OldPath] = $NewPath
 
     $oldJsonEscaped = $OldPath.Replace('\', '\\')
@@ -367,11 +393,11 @@ Write-Host "Metadata: $($selectedProject.Directory.FullName)"
 Write-Host "      To: $newMetadataPath"
 
 $createBackup = $Backup.IsPresent
-if (-not $Backup.IsPresent -and -not $Yes.IsPresent) {
+if (-not $Backup.IsPresent -and -not $Yes.IsPresent -and -not $WhatIfPreference) {
     $createBackup = Read-YesNo -Prompt 'Create a ZIP backup?' -Default $true
 }
 
-if (-not $Yes.IsPresent -and -not (Read-YesNo -Prompt 'Proceed with update?')) {
+if (-not $Yes.IsPresent -and -not $WhatIfPreference -and -not (Read-YesNo -Prompt 'Proceed with update?')) {
     Write-Host 'Operation cancelled.' -ForegroundColor Yellow
     return
 }
