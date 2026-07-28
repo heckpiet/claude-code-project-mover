@@ -2,18 +2,61 @@
 
 `claude-project-mover-gui.ps1` provides a Windows Forms interface for moving one or more Claude Code projects.
 
-## Start
+## Recommended start
+
+Use the included launcher:
+
+```text
+Start-ClaudeProjectMover.cmd
+```
+
+You can double-click the file in Windows Explorer or start it from a terminal:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\claude-project-mover-gui.ps1
+.\Start-ClaudeProjectMover.cmd
 ```
+
+The launcher automatically:
+
+- starts in the directory containing the tool
+- selects PowerShell 7 when `pwsh.exe` is available
+- otherwise uses Windows PowerShell 5.1
+- starts PowerShell in STA mode for Windows Forms
+- applies `ExecutionPolicy Bypass` only to this process
+- keeps the terminal open when startup fails so the error remains visible
+
+It does not permanently change the system-wide or user-wide PowerShell execution policy.
+
+## Direct PowerShell start
+
+The GUI can also be started directly:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1
+```
+
+or with Windows PowerShell:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1
+```
+
+Running only `./claude-project-mover-gui.ps1` may be blocked when Windows marks files downloaded from the internet as untrusted or when the current execution policy requires signed scripts. The launcher avoids that problem without weakening the permanent PowerShell configuration.
+
+To change into the download directory in PowerShell, use `Set-Location` or `cd` rather than entering the directory path as a command:
+
+```powershell
+cd "$HOME\Downloads"
+```
+
+## Project detection
 
 The interface reads the available projects from the Claude Code session metadata below `%USERPROFILE%\.claude\projects` or from `CLAUDE_CONFIG_DIR` when that environment variable is configured.
 
 ## Workflow
 
 1. Close active Claude Code sessions.
-2. Start `claude-project-mover-gui.ps1`.
+2. Start `Start-ClaudeProjectMover.cmd`.
 3. Select one or more source projects in the checklist.
 4. Select a common destination root with the native Windows folder picker.
 5. Keep **Projektverzeichnisse physisch verschieben** enabled when the tool should move the real project directories.
@@ -62,16 +105,16 @@ If metadata migration fails immediately after moving a project directory, the in
 
 To use the interface only for Claude Code metadata updates, disable **Projektverzeichnisse physisch verschieben**. The expected target project folders must already exist below the selected destination root.
 
-The same mode can be selected when starting the interface:
+The same mode can be selected when starting the interface directly:
 
 ```powershell
-.\claude-project-mover-gui.ps1 -NoProjectMove
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -NoProjectMove
 ```
 
 ## Custom Claude configuration
 
 ```powershell
-.\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
 ```
 
 The command-line script remains available for automation, preflight-only checks, custom free-space thresholds and non-Windows systems.
