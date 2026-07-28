@@ -1,246 +1,290 @@
 # Claude Code Project Mover
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE?logo=powershell&logoColor=white)](https://github.com/PowerShell/PowerShell)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#platform-support)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#plattformen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PowerShell validation](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml/badge.svg)](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml)
 
-Safely update Claude Code project references after moving a project folder to a new path.
+Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-This fork keeps the original Bash implementation for macOS and Linux and adds a native, safety-focused PowerShell implementation for Windows.
+Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
 
-- `claude-project-mover.sh` — original Bash workflow for macOS and Linux
-- `claude-project-mover.ps1` — extended implementation for Windows PowerShell 5.1 and PowerShell 7+
+## Schnellstart unter Windows
 
-> The scripts update Claude Code metadata only. Move the actual project folder first and close active Claude Code sessions for that project before running the mover.
+1. Repository als ZIP herunterladen und vollständig entpacken.
+2. Claude Code und alle betroffenen Sitzungen schließen.
+3. `Start-ClaudeProjectMover.cmd` doppelt anklicken.
+4. Projekte auswählen und **Quellen prüfen** anklicken.
+5. Zielordner auswählen, Backup aktiviert lassen und Verschiebung bestätigen.
 
-## Why this tool exists
+```text
+Start-ClaudeProjectMover.cmd
+```
 
-Claude Code stores project data in `~/.claude/projects/` using folder names derived from the absolute project path. On Windows, `~/.claude` normally resolves to `%USERPROFILE%\.claude`.
+Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows PowerShell 5.1. `ExecutionPolicy Bypass` gilt nur für den gestarteten Prozess. Die globale PowerShell-Konfiguration wird nicht verändert.
 
-When a project is moved, Claude Code can no longer associate the existing sessions with its new location. The mover updates the stored references and renames the matching metadata directory so that Claude Code can continue using the existing project history.
+Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HERE.md). Details zur Oberfläche stehen in [WINDOWS-GUI.md](WINDOWS-GUI.md).
 
-## Platform support
+## Funktionsumfang
 
-| Platform | Script | Status |
-| --- | --- | --- |
-| Windows | `claude-project-mover.ps1` | Native PowerShell support with preflight, backup and rollback |
-| macOS | `claude-project-mover.sh` | Original Bash implementation |
-| Linux | `claude-project-mover.sh` | Original Bash implementation |
+### Interaktive Windows-Oberfläche
 
-## PowerShell safety features
+- native Windows-Forms-Oberfläche
+- Auswahl eines oder mehrerer Claude-Code-Projekte
+- gemeinsamer Zielordner über den Windows-Ordnerdialog
+- optionales physisches Verschieben der echten Projektordner
+- reiner Metadatenmodus für bereits manuell verschobene Projekte
+- Statusanzeige mit Projekttyp, Dateianzahl und Größe
+- sichtbare Warnungen und Fehler vor der Migration
 
-The PowerShell edition adds safeguards around the original workflow.
+### Quellenprüfung
 
-- Detects the Claude Code configuration directory and respects `CLAUDE_CONFIG_DIR`
-- Reads the original path from existing JSONL session records
-- Checks that the destination project exists and is readable
-- Inventories destination files and common project markers
-- Validates JSON and JSONL metadata before making changes
-- Confirms that sessions reference the expected old path
-- Checks free space on the destination project volume
-- Checks free space for the metadata staging copy and optional ZIP backup
-- Supports a non-destructive `-CheckOnly` preflight
-- Updates normal, JSON-escaped and forward-slash Windows path variants
-- Performs changes in a staging copy instead of modifying live metadata directly
-- Validates the updated sessions before activation
-- Uses a rollback directory during the final metadata swap
-- Supports `-WhatIf`, confirmation prompts and unattended execution
+Vor dem Verschieben kontrolliert das Tool für jedes Projekt:
 
-## Quick start on Windows
+- Quellordner existiert und ist vollständig lesbar
+- Projekt enthält Dateien
+- Claude-Code-Metadaten und JSONL-Sitzungen sind vorhanden
+- JSON- und JSONL-Daten sind syntaktisch gültig
+- gespeicherte `cwd`-Pfade passen zum ausgewählten Quellordner
+- typische Projektmerkmale und Projekttypen werden erkannt
+- Dateianzahl und Gesamtgröße werden ermittelt
+- Zielpfad ist frei und kollidiert nicht mit vorhandenen Ordnern
 
-### 1. Move the project folder
+Erkannte Merkmale umfassen unter anderem:
 
-Move the real project directory to its new location using Explorer, Git or your preferred file-management tool.
+- Git und Claude: `.git`, `CLAUDE.md`, `.claude`
+- Node.js: `package.json` und Lock-Dateien
+- Python: `pyproject.toml`, `requirements.txt`, `Pipfile`
+- .NET: `.sln`, `.csproj`, `.fsproj`
+- Java: `pom.xml`, Gradle-Dateien
+- Go, Rust, PHP und Ruby: `go.mod`, `Cargo.toml`, `composer.json`, `Gemfile`
+- Docker: Dockerfile- und Compose-Dateien
 
-### 2. Close Claude Code
+Fehlende typische Projektmerkmale erzeugen nur eine Warnung, weil auch einfache Claude-Code-Projekte gültig sein können. Leere, nicht lesbare oder nicht zu den Claude-Sitzungen passende Ordner werden blockiert.
 
-Close active Claude Code sessions that use the project. This avoids concurrent writes while metadata is being migrated.
+### Prüfung nach dem Verschieben
 
-### 3. Run a preflight check
+Vor der Bewegung erstellt die Oberfläche ein Manifest mit relativen Dateipfaden und Dateigrößen. Nach dem Verschieben wird kontrolliert:
+
+- keine Datei fehlt
+- keine Dateigröße weicht ab
+- Dateianzahl stimmt überein
+- Gesamtgröße stimmt überein
+
+Die Dateiprüfung verwendet bewusst keine kryptografischen Hashes für jede Datei, damit auch große Projekte praktikabel verarbeitet werden können.
+
+### Claude-Code-Metadaten
+
+Die PowerShell-Engine:
+
+- erkennt das Standardverzeichnis `~/.claude/projects`
+- berücksichtigt `CLAUDE_CONFIG_DIR`
+- liest den bisherigen Projektpfad aus den Sitzungsdaten
+- prüft JSON- und JSONL-Dateien vor der Änderung
+- aktualisiert normale, JSON-escapte und mit `/` gespeicherte Pfadvarianten
+- bearbeitet die Metadaten zunächst in einer Arbeitskopie
+- validiert die aktualisierten Daten vor der Aktivierung
+- verwendet beim finalen Austausch einen Rollback-Ordner
+- kann ein ZIP-Backup der Claude-Metadaten erstellen
+
+## Statusanzeige
+
+| Status | Bedeutung |
+| --- | --- |
+| `NICHT GEPRÜFT` | Für das Projekt wurde noch keine Prüfung durchgeführt. |
+| `OK` | Quelle, Projektdateien und Claude-Metadaten sind plausibel. |
+| `WARNUNG` | Das Projekt ist verwendbar, enthält aber einen nicht kritischen Hinweis. |
+| `FEHLER` | Das Projekt wird aus Sicherheitsgründen nicht verschoben. |
+
+## Mehrere Projekte verschieben
+
+Mehrere Projekte werden nacheinander unterhalb eines gemeinsamen Zielordners abgelegt.
+
+```text
+Quelle:
+C:\Users\Peter\Code\Projekt-A
+C:\Users\Peter\Code\Projekt-B
+
+Zielwurzel:
+D:\Development
+
+Ergebnis:
+D:\Development\Projekt-A
+D:\Development\Projekt-B
+```
+
+Vor dem Start prüft das Tool die Gesamtgröße, den verfügbaren Speicherplatz und mögliche Namenskollisionen.
+
+## Startmöglichkeiten
+
+### Empfohlener Windows-Start
+
+```powershell
+.\Start-ClaudeProjectMover.cmd
+```
+
+### Direkter Start mit PowerShell 7
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1
+```
+
+### Nur Metadaten aktualisieren
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -NoProjectMove
+```
+
+### Eigene Claude-Konfiguration
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
+```
+
+## PowerShell-Kommandozeile
+
+Die grafische Oberfläche verwendet `claude-project-mover.ps1` als sichere Migrationsengine. Das Skript kann auch direkt für Automatisierung oder einzelne Projekte verwendet werden.
+
+### Reiner Prüfmodus
 
 ```powershell
 .\claude-project-mover.ps1 `
-  -ProjectPath 'C:\Users\Jane\Code\OldLocation\demo' `
-  -NewPath 'D:\Projects\demo' `
+  -ProjectPath 'C:\Code\AltesProjekt' `
+  -NewPath 'D:\Projekte\AltesProjekt' `
   -CheckOnly
 ```
 
-### 4. Run the migration
-
-Interactive mode:
-
-```powershell
-.\claude-project-mover.ps1
-```
-
-Parameter mode:
+### Migration mit Backup
 
 ```powershell
 .\claude-project-mover.ps1 `
-  -ProjectPath 'C:\Users\Jane\Code\OldLocation\demo' `
-  -NewPath 'D:\Projects\demo' `
+  -ProjectPath 'C:\Code\AltesProjekt' `
+  -NewPath 'D:\Projekte\AltesProjekt' `
   -Backup `
   -Yes
 ```
 
-The recommended sequence is `-CheckOnly` first and a migration with `-Backup` afterwards.
+### Parameter
 
-## PowerShell parameters
-
-| Parameter | Description |
+| Parameter | Beschreibung |
 | --- | --- |
-| `-ProjectPath` | Previous absolute project path. If omitted, an interactive selection is shown. |
-| `-NewPath` | New absolute project path. The folder must already exist. |
-| `-Backup` | Creates a ZIP backup before changing metadata. |
-| `-Yes` | Skips confirmation prompts. |
-| `-CheckOnly` | Runs project, metadata and free-space checks without changing anything. |
-| `-MinimumFreeSpaceGB` | Minimum required free space on the destination volume. Default is `1`. |
-| `-SkipSpaceCheck` | Skips free-space checks when the volume cannot be queried, such as some UNC shares. |
-| `-Force` | Continues past non-critical destination-content warnings. |
-| `-WhatIf` | Displays the intended operation without changing metadata. |
+| `-ProjectPath` | Bisheriger absoluter Projektpfad |
+| `-NewPath` | Neuer absoluter Projektpfad |
+| `-Backup` | Erstellt vor der Änderung ein ZIP-Backup |
+| `-Yes` | Überspringt Rückfragen für automatisierte Aufrufe |
+| `-CheckOnly` | Führt alle Vorprüfungen ohne Änderungen durch |
+| `-MinimumFreeSpaceGB` | Mindestfreiraum am Ziel, Standard `1` GB |
+| `-SkipSpaceCheck` | Überspringt die Speicherplatzprüfung, etwa bei problematischen UNC-Pfaden |
+| `-Force` | Erlaubt das Fortsetzen bei nicht kritischen Projektwarnungen |
+| `-WhatIf` | Zeigt die geplante Änderung ohne Ausführung |
 
-### Execution policy
+## Speicherplatzprüfung
 
-When Windows PowerShell blocks locally downloaded scripts, use a process-scoped bypass:
+Es werden zwei Bereiche betrachtet:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\claude-project-mover.ps1
-```
+1. Das Ziellaufwerk des echten Projektordners muss ausreichend freien Speicher und Sicherheitsreserve besitzen.
+2. Das Laufwerk mit `.claude/projects` muss genügend Platz für Arbeitskopie, temporäre Daten und optionales ZIP-Backup bieten.
 
-This does not permanently change the machine-wide execution policy.
+Bei UNC-Pfaden oder bestimmten Netzlaufwerken kann die .NET-basierte Abfrage technisch eingeschränkt sein.
 
-## What is validated
+## Sicherer Migrationsablauf
 
-### Destination project
+1. Quelle und Claude-Code-Metadaten prüfen
+2. Zielpfad und freien Speicher kontrollieren
+3. optionales ZIP-Backup erstellen
+4. Claude-Metadaten in eine Arbeitskopie kopieren
+5. Pfade nur in der Arbeitskopie aktualisieren
+6. aktualisierte JSON- und JSONL-Daten validieren
+7. ursprüngliche Metadaten als Rollback-Version umbenennen
+8. geprüfte Arbeitskopie aktivieren
+9. Ergebnis erneut validieren
+10. Rollback-Version nach erfolgreichem Abschluss entfernen
 
-The PowerShell script verifies that the new directory exists, can be enumerated and contains project data. It also looks for common project markers such as `.git`, `CLAUDE.md`, `.claude`, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, solution files and project files.
+Schlägt die Aktivierung fehl, versucht das Skript den vorherigen Metadatenzustand wiederherzustellen. Die GUI versucht zusätzlich, den aktuell betroffenen Projektordner zurück an die Quelle zu verschieben.
 
-A project does not need every marker. They are indicators used to detect accidental selection of an empty or unrelated destination directory.
+## Plattformen
 
-### Claude Code metadata
+| Plattform | Datei | Umfang |
+| --- | --- | --- |
+| Windows | `Start-ClaudeProjectMover.cmd` | empfohlener Starter |
+| Windows | `claude-project-mover-gui.ps1` | native Oberfläche und Mehrfachauswahl |
+| Windows, PowerShell 7 | `claude-project-mover.ps1` | Kommandozeile und Migrationsengine |
+| macOS | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
+| Linux | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
 
-The script checks that:
-
-- at least one `.jsonl` session file exists
-- at least one valid JSONL record can be parsed
-- JSON and JSONL records are not malformed
-- at least one stored `cwd` value matches the old project path
-- updated metadata contains the new project path
-- the number of invalid records does not increase during migration
-
-All files and subdirectories inside the Claude Code project metadata directory are copied to the staging area. The script only edits `.json` and `.jsonl` path references.
-
-### Free space
-
-Two volumes can be checked:
-
-1. The volume containing the moved project must retain configurable free-space headroom. The default minimum is 1 GB, or more for large projects.
-2. The volume containing `.claude/projects` must have enough room for the staging copy, operational headroom and the optional ZIP backup.
-
-The tool does not copy the real project folder. The destination check is therefore a safety and continuity check rather than a file-copy capacity calculation.
-
-## Transactional migration flow
-
-The PowerShell edition avoids editing the active metadata directory in place.
-
-1. Validate destination project and existing Claude metadata
-2. Check available disk space
-3. Optionally create a ZIP backup
-4. Copy all metadata into a temporary staging directory
-5. Replace path references in the staging copy
-6. Parse and validate the updated JSON and JSONL records
-7. Rename the original metadata directory to a rollback name
-8. Activate the validated staging directory under the new Claude project name
-9. Validate the active result and remove the rollback copy
-
-If activation fails, the script attempts to restore the original metadata directory automatically.
-
-## Backup format
-
-PowerShell backups use ZIP:
-
-```text
-BACKUP__C--Users-Jane-Code-demo__20260728_191500.zip
-```
-
-The original Bash implementation uses `tar.gz`:
-
-```text
-BACKUP__-Users-jane-Code-demo__20251225_123130.tar.gz
-```
-
-## Bash usage — original implementation
-
-The original project provides a Bash script for macOS and Linux.
+## Bash-Version des Originalprojekts
 
 ```bash
 chmod +x claude-project-mover.sh
 ./claude-project-mover.sh
 ```
 
-The original workflow is:
+Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das Skript eine nummerierte Liste an.
 
-1. Move the project folder to the new location
-2. Run `./claude-project-mover.sh`
-3. Select the project and enter the new path
-4. Let the script verify that the destination folder exists
-5. Optionally create a compressed backup
-6. Update stored path references and rename the metadata folder
+## Voraussetzungen
 
-If [`fzf`](https://github.com/junegunn/fzf) is installed, project selection switches to a fuzzy finder. Otherwise, the script displays a numbered list.
+### Windows
 
-## Requirements
+- Windows PowerShell 5.1 oder PowerShell 7+
+- Claude Code mit mindestens einem gespeicherten Projekt
+- Lesezugriff auf die Quellprojekte
+- Schreibzugriff auf Ziel und Claude-Konfigurationsverzeichnis
+- Windows Forms für die grafische Oberfläche
 
-### PowerShell
+### macOS und Linux
 
-- Windows PowerShell 5.1 or PowerShell 7+
-- Claude Code installed
-- At least one project below `.claude/projects`
-- Read/write access to the Claude Code configuration directory
+- Bash
+- Claude Code und `~/.claude/projects`
+- optional `fzf`
 
-### Bash
+## Wichtige Hinweise und Grenzen
 
-- macOS or Linux with Bash
-- Claude Code installed and `~/.claude/projects/` available
-- Optional `fzf` for fuzzy project selection
+- Claude Code vor der Migration vollständig schließen.
+- Für wichtige Sitzungsverläufe das Backup aktiviert lassen.
+- Bestehende Zielordner werden nicht überschrieben oder zusammengeführt.
+- Mehrere Projekte werden nacheinander und nicht als eine gemeinsame Transaktion verarbeitet.
+- Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
+- Die Metadatenstruktur von Claude Code ist nicht vollständig dokumentiert und kann sich künftig ändern.
+- Bei Netzlaufwerken kann die Speicherplatzprüfung eingeschränkt sein.
+- Vor unersetzbaren Migrationen zuerst ein entbehrliches Testprojekt verwenden.
 
-## Known limitations
-
-- The scripts rely on Claude Code's current project-directory naming and metadata layout, which may change in future Claude Code releases.
-- Free-space detection for UNC paths is not consistently available through .NET. Check network-share capacity manually and use `-SkipSpaceCheck` only when necessary.
-- The PowerShell script validates Claude Code metadata structures it can observe, but it cannot guarantee compatibility with undocumented future metadata fields.
-- An end-to-end test should use a disposable project before migrating irreplaceable session history.
-
-## Project structure
+## Projektstruktur
 
 ```text
 .
-├── .github/workflows/powershell.yml
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   ├── workflows/powershell.yml
+│   ├── CODEOWNERS
+│   ├── dependabot.yml
+│   └── pull_request_template.md
+├── Start-ClaudeProjectMover.cmd
+├── START-HERE.md
+├── WINDOWS-GUI.md
+├── claude-project-mover-gui.ps1
 ├── claude-project-mover.ps1
 ├── claude-project-mover.sh
+├── CHANGELOG.md
 ├── CONTRIBUTING.md
+├── SECURITY.md
 ├── LICENSE
-├── README.md
-└── SECURITY.md
+└── README.md
 ```
 
-## Original project and attribution
+## Originalprojekt und Attribution
 
-This repository is a fork of [`skydiver/claude-code-project-mover`](https://github.com/skydiver/claude-code-project-mover).
+Dieses Repository ist ein Fork von [`skydiver/claude-code-project-mover`](https://github.com/skydiver/claude-code-project-mover).
 
-The original project by Martin introduced the Bash-based approach for repairing Claude Code project references after a folder move. That implementation, its usage information and its MIT license are retained in this fork. The PowerShell edition and the additional validation, disk-space and transactional safety features are extensions maintained here.
+Das Originalprojekt von Martin führte den Bash-basierten Ansatz ein, um Claude-Code-Projektreferenzen nach einer Verzeichnisverschiebung zu reparieren. Das ursprüngliche Skript, die zugehörigen Informationen und die MIT-Lizenz bleiben erhalten. Die PowerShell-Version, die Windows-Oberfläche sowie die zusätzlichen Prüf-, Backup- und Rollback-Funktionen werden in diesem Fork ergänzt.
 
-## Contributing
+## Sicherheit
 
-Bug reports and pull requests are welcome. Please include the operating system, PowerShell version, Claude Code version when known, the old and new path format and sanitized diagnostic output.
+Claude-Code-Sitzungsdateien können lokale Pfade, Prompts, Antworten, Quellcode und Tool-Ausgaben enthalten. Solche Dateien oder vollständige `.claude`-Ordner nicht ungefiltert in öffentliche Issues hochladen. Weitere Hinweise stehen in [SECURITY.md](SECURITY.md).
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development and validation guidance.
+## Mitwirken
 
-## Security
+Fehlerberichte und Pull Requests sind willkommen. Bitte Betriebssystem, PowerShell-Version, Claude-Code-Version, alte und neue Pfade sowie bereinigte Diagnoseausgaben angeben. Weitere Informationen stehen in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Do not attach private Claude Code session files to public issues. They can contain local paths, prompts, tool output and project information. See [SECURITY.md](SECURITY.md) for responsible reporting guidance.
+## Lizenz
 
-## License
-
-MIT. The original copyright and permission notice remain in [LICENSE](LICENSE).
+MIT. Der ursprüngliche Copyright- und Lizenzhinweis bleibt in [LICENSE](LICENSE) erhalten.
