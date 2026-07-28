@@ -1,6 +1,29 @@
 # Native Windows interface
 
+> **Empfohlener Start unter Windows:** Lade das komplette Repository herunter, entpacke es vollständig und starte anschließend `Start-ClaudeProjectMover.cmd` per Doppelklick. Claude Code sollte vorher geschlossen sein.
+
+Eine kompakte deutschsprachige Schritt-für-Schritt-Anleitung mit typischen Fehlern findest du in [START-HERE.md](START-HERE.md).
+
 `claude-project-mover-gui.ps1` provides a Windows Forms interface for moving one or more Claude Code projects.
+
+## Schnellstart
+
+1. Das komplette Repository über **Code → Download ZIP** herunterladen.
+2. Die ZIP-Datei vollständig entpacken.
+3. Claude Code schließen.
+4. `Start-ClaudeProjectMover.cmd` doppelt anklicken.
+5. Ein oder mehrere Quellprojekte auswählen.
+6. Über **Durchsuchen ...** einen gemeinsamen Zielordner wählen.
+7. Das ZIP-Backup aktiviert lassen.
+8. Auf **Verschieben** klicken und den angezeigten Plan prüfen.
+
+Diese Dateien müssen im gleichen Ordner liegen:
+
+```text
+Start-ClaudeProjectMover.cmd
+claude-project-mover-gui.ps1
+claude-project-mover.ps1
+```
 
 ## Recommended start
 
@@ -13,6 +36,7 @@ Start-ClaudeProjectMover.cmd
 You can double-click the file in Windows Explorer or start it from a terminal:
 
 ```powershell
+cd "$HOME\Downloads\claude-code-project-mover"
 .\Start-ClaudeProjectMover.cmd
 ```
 
@@ -118,6 +142,30 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gu
 ```
 
 The command-line script remains available for automation, preflight-only checks, custom free-space thresholds and non-Windows systems.
+
+## Typische Fehler
+
+### Ein Pfad wird als Befehl behandelt
+
+Falsch:
+
+```powershell
+C:\Users\Name\Downloads
+```
+
+Richtig:
+
+```powershell
+cd C:\Users\Name\Downloads
+```
+
+### Das Skript ist nicht digital signiert
+
+Nutze `Start-ClaudeProjectMover.cmd` oder einen der oben dokumentierten Befehle mit `-ExecutionPolicy Bypass`. Der Bypass gilt nur für den gestarteten Prozess.
+
+### Die GUI-Datei wurde nicht gefunden
+
+Prüfe, ob `Start-ClaudeProjectMover.cmd`, `claude-project-mover-gui.ps1` und `claude-project-mover.ps1` im gleichen Ordner liegen.
 
 ## Limitations
 
