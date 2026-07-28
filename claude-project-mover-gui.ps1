@@ -5,13 +5,10 @@
 Native Windows interface for moving one or more Claude Code projects.
 
 .DESCRIPTION
-Displays all Claude Code projects in a Windows Forms checklist, lets the user
-select a destination root through the native folder picker and can move the
-actual project directories before invoking claude-project-mover.ps1 to update
-Claude Code metadata.
-
-The command-line mover remains the migration engine and performs metadata,
-content and free-space validation.
+Shows detected Claude Code projects in a Windows Forms checklist. One or more
+projects can be selected and moved below a destination root chosen through the
+native Windows folder picker. The command-line mover remains the metadata
+migration engine.
 #>
 
 [CmdletBinding()]
@@ -67,18 +64,13 @@ function Get-ClaudeProjects {
     param([Parameter(Mandatory)][string]$ProjectsDirectory)
 
     $items = foreach ($directory in Get-ChildItem -LiteralPath $ProjectsDirectory -Directory -ErrorAction Stop) {
-        if ($directory.Name.StartsWith('BACKUP__', [StringComparison]::OrdinalIgnoreCase) -or
-            $directory.Name.StartsWith('.MIGRATION__', [StringComparison]::OrdinalIgnoreCase) -or
-            $directory.Name.StartsWith('.ROLLBACK__', [StringComparison]::OrdinalIgnoreCase)) {
-            continue
-        }
+        if ($directory.Name -match '^(BACKUP__|\.MIGRATION__|\.ROLLBACK__)') { continue }
 
         $projectPath = $null
         foreach ($file in Get-ChildItem -LiteralPath $directory.FullName -File -Filter '*.jsonl' -Recurse -ErrorAction SilentlyContinue) {
             $projectPath = Get-CwdFromJsonl -File $file
             if (-not [string]::IsNullOrWhiteSpace($projectPath)) { break }
         }
-
         if ([string]::IsNullOrWhiteSpace($projectPath)) { continue }
 
         [pscustomobject]@{
@@ -105,9 +97,7 @@ function Get-AvailableBytes {
     param([Parameter(Mandatory)][string]$Path)
 
     $root = [System.IO.Path]::GetPathRoot([System.IO.Path]::GetFullPath($Path))
-    if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith('\\')) {
-        return $null
-    }
+    if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith('\\')) { return $null }
     $drive = New-Object System.IO.DriveInfo($root)
     if (-not $drive.IsReady) { return $null }
     return [long]$drive.AvailableFreeSpace
@@ -115,10 +105,12 @@ function Get-AvailableBytes {
 
 function Format-Bytes {
     param([Parameter(Mandatory)][long]$Bytes)
+
     if ($Bytes -ge 1TB) { return '{0:N2} TB' -f ($Bytes / 1TB) }
     if ($Bytes -ge 1GB) { return '{0:N2} GB' -f ($Bytes / 1GB) }
     if ($Bytes -ge 1MB) { return '{0:N2} MB' -f ($Bytes / 1MB) }
-    return '{0:N2} KB' -f ($Bytes / 1KB)
+    if ($Bytes -ge 1KB) { return '{0:N2} KB' -f ($Bytes / 1KB) }
+    return "$Bytes Bytes"
 }
 
 $configPath = Get-ClaudeConfigPath
@@ -133,9 +125,7 @@ if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) {
 }
 
 $projects = Get-ClaudeProjects -ProjectsDirectory $projectsPath
-if ($projects.Count -eq 0) {
-    throw 'No Claude Code projects with readable session metadata were found.'
-}
+if ($projects.Count -eq 0) { throw 'No Claude Code projects with readable session metadata were found.' }
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Claude Code Project Mover'
@@ -152,7 +142,7 @@ $title.Location = New-Object System.Drawing.Point(20, 18)
 $form.Controls.Add($title)
 
 $description = New-Object System.Windows.Forms.Label
-$description.Text = 'Wähle ein oder mehrere Projekte und anschließend den gemeinsamen Zielordner aus.'
+$description.Text = 'Wähle ein oder mehrere Projekte und anschließend einen gemeinsamen Zielordner.'
 $description.AutoSize = $true
 $description.Location = New-Object System.Drawing.Point(23, 54)
 $form.Controls.Add($description)
@@ -176,22 +166,18 @@ $selectAllButton = New-Object System.Windows.Forms.Button
 $selectAllButton.Text = 'Alle auswählen'
 $selectAllButton.Location = New-Object System.Drawing.Point(24, 420)
 $selectAllButton.Size = New-Object System.Drawing.Size(110, 30)
-$selectAllButton.Add_Click({
-    for ($i = 0; $i -lt $projectList.Items.Count; $i++) { $projectList.SetItemChecked($i, $true) }
-})
+$selectAllButton.Add_Click({ for ($i = 0; $i -lt $projectList.Items.Count; $i++) { $projectList.SetItemChecked($i, $true) } })
 $form.Controls.Add($selectAllButton)
 
 $clearButton = New-Object System.Windows.Forms.Button
 $clearButton.Text = 'Auswahl löschen'
 $clearButton.Location = New-Object System.Drawing.Point(142, 420)
 $clearButton.Size = New-Object System.Drawing.Size(120, 30)
-$clearButton.Add_Click({
-    for ($i = 0; $i -lt $projectList.Items.Count; $i++) { $projectList.SetItemChecked($i, $false) }
-})
+$clearButton.Add_Click({ for ($i = 0; $i -lt $projectList.Items.Count; $i++) { $projectList.SetItemChecked($i, $false) } })
 $form.Controls.Add($clearButton)
 
 $targetLabel = New-Object System.Windows.Forms.Label
-$targetLabel.Text = 'Zielordner'
+$targetLabel.Text = 'Gemeinsamer Zielordner'
 $targetLabel.AutoSize = $true
 $targetLabel.Location = New-Object System.Drawing.Point(24, 470)
 $form.Controls.Add($targetLabel)
@@ -214,9 +200,7 @@ $browseButton.Add_Click({
     if (-not [string]::IsNullOrWhiteSpace($targetText.Text) -and (Test-Path -LiteralPath $targetText.Text -PathType Container)) {
         $dialog.SelectedPath = $targetText.Text
     }
-    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
-        $targetText.Text = $dialog.SelectedPath
-    }
+    if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) { $targetText.Text = $dialog.SelectedPath }
     $dialog.Dispose()
 })
 $form.Controls.Add($browseButton)
@@ -298,13 +282,7 @@ $moveButton.Add_Click({
         }
 
         $summary = ($plan | ForEach-Object { "• $($_.Project.SourcePath)`r`n  → $($_.Destination)" }) -join "`r`n"
-        $confirmation = [System.Windows.Forms.MessageBox]::Show(
-            $form,
-            "Folgende Projekte werden verarbeitet:`r`n`r`n$summary`r`n`r`nFortfahren?",
-            'Migration bestätigen',
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Question
-        )
+        $confirmation = [System.Windows.Forms.MessageBox]::Show($form, "Folgende Projekte werden verarbeitet:`r`n`r`n$summary`r`n`r`nFortfahren?", 'Migration bestätigen', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
         if ($confirmation -ne [System.Windows.Forms.DialogResult]::Yes) { return }
 
         $form.UseWaitCursor = $true
@@ -317,27 +295,20 @@ $moveButton.Add_Click({
             $destination = $item.Destination
             $statusLabel.Text = "Verarbeite $source"
             [System.Windows.Forms.Application]::DoEvents()
-
             $filesMoved = $false
+
             try {
                 if ($moveFilesCheck.Checked) {
                     Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
                     $filesMoved = $true
                 }
-                else {
-                    if (-not (Test-Path -LiteralPath $destination -PathType Container)) {
-                        throw "Das Zielprojekt muss bereits existieren: $destination"
-                    }
+                elseif (-not (Test-Path -LiteralPath $destination -PathType Container)) {
+                    throw "Das Zielprojekt muss bereits existieren: $destination"
                 }
 
-                $arguments = @{
-                    ProjectPath = $source
-                    NewPath = $destination
-                    Yes = $true
-                }
+                $arguments = @{ ProjectPath = $source; NewPath = $destination; Yes = $true }
                 if ($backupCheck.Checked) { $arguments.Backup = $true }
                 & $coreScript @arguments
-                if ($LASTEXITCODE -ne 0) { throw "Migration engine returned exit code $LASTEXITCODE." }
                 $completed++
             }
             catch {
@@ -350,25 +321,13 @@ $moveButton.Add_Click({
         }
 
         $statusLabel.Text = "$completed Projekt(e) erfolgreich verschoben."
-        [void][System.Windows.Forms.MessageBox]::Show(
-            $form,
-            "$completed Projekt(e) wurden erfolgreich verschoben und die Claude-Code-Metadaten aktualisiert.",
-            'Migration abgeschlossen',
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        )
+        [void][System.Windows.Forms.MessageBox]::Show($form, "$completed Projekt(e) wurden erfolgreich verschoben und die Claude-Code-Metadaten aktualisiert.", 'Migration abgeschlossen', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
     }
     catch {
         $statusLabel.Text = 'Fehler'
-        [void][System.Windows.Forms.MessageBox]::Show(
-            $form,
-            $_.Exception.Message,
-            'Migration fehlgeschlagen',
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Error
-        )
+        [void][System.Windows.Forms.MessageBox]::Show($form, $_.Exception.Message, 'Migration fehlgeschlagen', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
     }
     finally {
         $form.UseWaitCursor = $false
