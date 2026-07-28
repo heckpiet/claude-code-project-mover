@@ -1,85 +1,137 @@
-# Native Windows interface
+# Native Windows-Oberfläche
 
-`claude-project-mover-gui.ps1` provides a Windows Forms interface for moving one or more Claude Code projects.
+`claude-project-mover-gui.ps1` ist die interaktive Windows-Oberfläche zum sicheren Verschieben eines oder mehrerer Claude-Code-Projekte.
 
-## Start
+## Empfohlener Start
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\claude-project-mover-gui.ps1
-```
-
-The interface reads the available projects from the Claude Code session metadata below `%USERPROFILE%\.claude\projects` or from `CLAUDE_CONFIG_DIR` when that environment variable is configured.
-
-## Workflow
-
-1. Close active Claude Code sessions.
-2. Start `claude-project-mover-gui.ps1`.
-3. Select one or more source projects in the checklist.
-4. Select a common destination root with the native Windows folder picker.
-5. Keep **Projektverzeichnisse physisch verschieben** enabled when the tool should move the real project directories.
-6. Keep the ZIP backup enabled for important session history.
-7. Review the generated source-to-destination plan and confirm it.
-
-For a source project such as:
+Starte im entpackten Projektordner:
 
 ```text
-C:\Users\Jane\Code\ProjectA
+Start-ClaudeProjectMover.cmd
 ```
 
-and the selected destination root:
+Am einfachsten ist ein Doppelklick im Windows Explorer. Alternativ:
+
+```powershell
+.\Start-ClaudeProjectMover.cmd
+```
+
+Direkter Start über PowerShell 7:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1
+```
+
+## Interaktiver Ablauf
+
+1. Claude Code vollständig schließen.
+2. Ein oder mehrere Quellprojekte in der Liste markieren.
+3. Auf **Quellen prüfen** klicken.
+4. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
+5. Einen gemeinsamen Zielordner auswählen.
+6. **Projektverzeichnisse physisch verschieben** aktiviert lassen, wenn das Tool auch die echten Dateien bewegen soll.
+7. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
+8. Auf **Verschieben** klicken und den geprüften Plan bestätigen.
+
+Beim Klick auf **Verschieben** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verschoben.
+
+## Was in der Quelle geprüft wird
+
+Für jedes ausgewählte Projekt kontrolliert das Tool:
+
+- ob der Quellordner vorhanden und vollständig lesbar ist
+- ob der Ordner Dateien enthält
+- ob gültige Claude-Code-JSONL-Sitzungsdaten vorhanden sind
+- ob die in Claude Code gespeicherten `cwd`-Pfade zum Quellordner passen
+- ob beschädigte JSONL-Datensätze vorhanden sind
+- welche typischen Projektdateien und Projekttypen erkannt werden
+- wie viele Dateien vorhanden sind und wie groß das Projekt insgesamt ist
+
+Erkannte Projektmerkmale umfassen unter anderem:
+
+- `.git`, `CLAUDE.md` und `.claude`
+- `package.json` und Lock-Dateien für Node.js
+- `pyproject.toml`, `requirements.txt` und `Pipfile` für Python
+- `.sln`, `.csproj` und `.fsproj` für .NET
+- `pom.xml` und Gradle-Dateien für Java
+- `go.mod`, `Cargo.toml`, `composer.json` und `Gemfile`
+- Dockerfile- und Compose-Dateien
+
+Fehlen typische Projektmerkmale, wird eine Warnung angezeigt. Ein leerer, nicht lesbarer oder nicht zu den Claude-Sitzungen passender Ordner wird als Fehler blockiert.
+
+## Prüfung nach dem Verschieben
+
+Vor der Bewegung erstellt das Tool intern ein Manifest mit:
+
+- relativem Dateipfad
+- Dateigröße
+- Dateianzahl
+- Gesamtgröße
+
+Nach dem Verschieben wird der Zielordner erneut geprüft. Der Vorgang gilt nur dann als erfolgreich, wenn:
+
+- keine Datei fehlt
+- keine Dateigröße abweicht
+- Dateianzahl und Gesamtgröße mit der Quelle übereinstimmen
+
+Schlägt diese Prüfung oder die anschließende Claude-Metadatenmigration fehl, versucht das Tool, das aktuell betroffene Projekt an seinen ursprünglichen Ort zurückzuschieben.
+
+## Statusanzeige
+
+| Status | Bedeutung |
+| --- | --- |
+| `NICHT GEPRÜFT` | Für dieses Projekt wurde noch keine Prüfung durchgeführt. |
+| `OK` | Quelle, Claude-Metadaten und Projektdateien sind plausibel. |
+| `WARNUNG` | Quelle ist verwendbar, aber es fehlen typische Projektmerkmale oder es gibt einen nicht kritischen Hinweis. |
+| `FEHLER` | Das Projekt wird aus Sicherheitsgründen nicht verschoben. |
+
+## Mehrere Projekte
+
+Mehrere Projekte können gleichzeitig ausgewählt werden. Sie werden nacheinander unterhalb des gewählten gemeinsamen Zielordners abgelegt.
+
+Beispiel:
+
+```text
+C:\Users\Peter\Code\Projekt-A
+C:\Users\Peter\Code\Projekt-B
+```
+
+Zielordner:
 
 ```text
 D:\Development
 ```
 
-the resulting target is:
+Ergebnis:
 
 ```text
-D:\Development\ProjectA
+D:\Development\Projekt-A
+D:\Development\Projekt-B
 ```
 
-Each selected project keeps its existing leaf directory name.
+Vor dem Start prüft das Tool zusätzlich, ob bereits gleichnamige Zielordner existieren und ob auf dem Ziellaufwerk genügend freier Speicher vorhanden ist.
 
-## Multiple projects
+## Nur Claude-Metadaten aktualisieren
 
-The checklist supports selecting any number of detected Claude Code projects. Before changing anything, the interface verifies that:
+Deaktiviere **Projektverzeichnisse physisch verschieben**, wenn die Projektordner bereits manuell an das Ziel verschoben wurden. Die erwarteten Zielordner müssen dann bereits existieren.
 
-- every source project still exists
-- every generated target path is unused
-- the target root exists
-- enough free space is available for all selected projects plus safety headroom
-
-The projects are then processed one after another. For each project the interface:
-
-1. moves the real project directory when enabled
-2. calls `claude-project-mover.ps1`
-3. creates the requested metadata backup
-4. validates and updates the Claude Code metadata
-
-If metadata migration fails immediately after moving a project directory, the interface attempts to move that directory back to its original path.
-
-## Metadata-only mode
-
-To use the interface only for Claude Code metadata updates, disable **Projektverzeichnisse physisch verschieben**. The expected target project folders must already exist below the selected destination root.
-
-The same mode can be selected when starting the interface:
+Direkter Start in diesem Modus:
 
 ```powershell
-.\claude-project-mover-gui.ps1 -NoProjectMove
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -NoProjectMove
 ```
 
-## Custom Claude configuration
+## Eigene Claude-Konfiguration
 
 ```powershell
-.\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
 ```
 
-The command-line script remains available for automation, preflight-only checks, custom free-space thresholds and non-Windows systems.
+## Einschränkungen
 
-## Limitations
-
-- The native interface requires Windows and Windows Forms.
-- All selected projects are moved below one common destination root.
-- Existing target directories are never overwritten or merged.
-- The interface processes projects sequentially rather than as one cross-project transaction. Projects completed before a later failure remain migrated.
-- Network-share free-space information may not be available through .NET. Review network capacity manually before moving large projects.
+- Die Oberfläche benötigt Windows und Windows Forms.
+- Alle ausgewählten Projekte werden unter einen gemeinsamen Zielordner verschoben.
+- Bestehende Zielordner werden weder überschrieben noch zusammengeführt.
+- Die Projekte werden nacheinander verarbeitet. Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
+- Bei Netzlaufwerken kann die Ermittlung des freien Speicherplatzes technisch eingeschränkt sein.
+- Die Dateiprüfung vergleicht Pfade, Anzahl und Dateigrößen. Sie berechnet bewusst nicht für jede Datei einen kryptografischen Hash, da dies bei großen Projekten den Ablauf erheblich verlangsamen würde.
