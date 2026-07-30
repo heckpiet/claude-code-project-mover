@@ -2,6 +2,8 @@
 
 `claude-project-mover-gui.ps1` ist die interaktive Windows-Oberfläche zum sicheren Verschieben eines oder mehrerer Claude-Code-Projekte.
 
+Die Windows-Umsetzung ist der Schwerpunkt dieses Repositorys. Oberfläche, PowerShell-Engine, CMD-Starter, deutsche Dokumentation und CI-Prüfungen werden gemeinsam für Windows 10/11 sowie Windows PowerShell 5.1 und PowerShell 7 gepflegt.
+
 Die Oberfläche verwendet UTF-8 mit BOM, damit deutsche Texte auch unter Windows PowerShell 5.1 korrekt dargestellt werden.
 
 ## Empfohlener Start
