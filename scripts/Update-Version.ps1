@@ -5,8 +5,8 @@
 Increments the project version consistently.
 
 .DESCRIPTION
-Updates the root VERSION file and the embedded $ScriptVersion value in
-claude-project-mover.ps1. The version follows Semantic Versioning.
+Updates VERSION, README, and the embedded version values in the PowerShell,
+Bash, and CMD entry points. The version follows Semantic Versioning.
 
 .EXAMPLE
 .\scripts\Update-Version.ps1 -Part Minor
@@ -28,6 +28,8 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $versionPath = Join-Path $repositoryRoot 'VERSION'
 $mainScriptPath = Join-Path $repositoryRoot 'claude-project-mover.ps1'
+$bashScriptPath = Join-Path $repositoryRoot 'claude-project-mover.sh'
+$cmdScriptPath = Join-Path $repositoryRoot 'Start-ClaudeProjectMover.cmd'
 $readmePath = Join-Path $repositoryRoot 'README.md'
 
 if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
@@ -38,6 +40,11 @@ if (-not (Test-Path -LiteralPath $mainScriptPath -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $readmePath -PathType Leaf)) {
     throw "README not found at '$readmePath'."
+}
+foreach ($entryPointPath in @($bashScriptPath, $cmdScriptPath)) {
+    if (-not (Test-Path -LiteralPath $entryPointPath -PathType Leaf)) {
+        throw "Entry point not found at '$entryPointPath'."
+    }
 }
 
 $currentVersion = [version](Get-Content -LiteralPath $versionPath -Raw).Trim()
@@ -58,9 +65,19 @@ if (-not [regex]::IsMatch($scriptContent, $versionPattern)) {
     throw 'Could not find $ScriptVersion in claude-project-mover.ps1.'
 }
 $readmeContent = [System.IO.File]::ReadAllText($readmePath)
+$bashContent = [System.IO.File]::ReadAllText($bashScriptPath)
+$cmdContent = [System.IO.File]::ReadAllText($cmdScriptPath)
 $readmeVersionPattern = '(?m)^Aktuelle Version: \*\*[^*]+\*\*\s*$'
 if (-not [regex]::IsMatch($readmeContent, $readmeVersionPattern)) {
     throw 'Could not find the current version line in README.md.'
+}
+$bashVersionPattern = '(?m)^SCRIPT_VERSION="[^"]+"\s*$'
+$cmdVersionPattern = '(?mi)^set "SCRIPT_VERSION=[^"]+"\s*$'
+if (-not [regex]::IsMatch($bashContent, $bashVersionPattern)) {
+    throw 'Could not find SCRIPT_VERSION in claude-project-mover.sh.'
+}
+if (-not [regex]::IsMatch($cmdContent, $cmdVersionPattern)) {
+    throw 'Could not find SCRIPT_VERSION in Start-ClaudeProjectMover.cmd.'
 }
 
 if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersion to $newVersion")) {
@@ -79,6 +96,10 @@ if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersio
         "Aktuelle Version: **$newVersion**"
     )
     [System.IO.File]::WriteAllText($readmePath, $updatedReadme, $utf8WithoutBom)
+    $updatedBash = [regex]::Replace($bashContent, $bashVersionPattern, "SCRIPT_VERSION=`"$newVersion`"")
+    [System.IO.File]::WriteAllText($bashScriptPath, $updatedBash, $utf8WithoutBom)
+    $updatedCmd = [regex]::Replace($cmdContent, $cmdVersionPattern, "set `"SCRIPT_VERSION=$newVersion`"")
+    [System.IO.File]::WriteAllText($cmdScriptPath, $updatedCmd, $utf8WithoutBom)
 
     Write-Host "Version updated: $currentVersion -> $newVersion" -ForegroundColor Green
     Write-Host 'Next: update CHANGELOG.md, commit, merge, then tag the release.' -ForegroundColor Yellow

@@ -8,12 +8,16 @@ on:
     paths:
       - '**.ps1'
       - '**.psm1'
+      - '**.sh'
+      - '**.cmd'
       - 'VERSION'
       - '.github/workflows/powershell.yml'
   pull_request:
     paths:
       - '**.ps1'
       - '**.psm1'
+      - '**.sh'
+      - '**.cmd'
       - 'VERSION'
       - '.github/workflows/powershell.yml'
   workflow_dispatch:
@@ -61,6 +65,14 @@ jobs:
           }
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+          $bash = Get-Content -LiteralPath claude-project-mover.sh -Raw
+          if ($bash -notmatch "(?m)^SCRIPT_VERSION=`"$([regex]::Escape($version))`"\s*$") {
+            throw "claude-project-mover.sh does not contain version '$version'."
+          }
+          $cmd = Get-Content -LiteralPath Start-ClaudeProjectMover.cmd -Raw
+          if ($cmd -notmatch "(?mi)^set `"SCRIPT_VERSION=$([regex]::Escape($version))`"\s*$") {
+            throw "Start-ClaudeProjectMover.cmd does not contain version '$version'."
           }
           $readme = Get-Content -LiteralPath README.md -Raw
           if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
@@ -120,6 +132,14 @@ jobs:
           }
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+          $bash = Get-Content -LiteralPath claude-project-mover.sh -Raw
+          if ($bash -notmatch "(?m)^SCRIPT_VERSION=`"$([regex]::Escape($version))`"\s*$") {
+            throw "claude-project-mover.sh does not contain version '$version'."
+          }
+          $cmd = Get-Content -LiteralPath Start-ClaudeProjectMover.cmd -Raw
+          if ($cmd -notmatch "(?mi)^set `"SCRIPT_VERSION=$([regex]::Escape($version))`"\s*$") {
+            throw "Start-ClaudeProjectMover.cmd does not contain version '$version'."
           }
           $readme = Get-Content -LiteralPath README.md -Raw
           if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
