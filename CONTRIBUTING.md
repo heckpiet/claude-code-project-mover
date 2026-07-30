@@ -68,3 +68,17 @@ A pull request should explain:
 - limitations that remain
 
 Prefer small, reviewable changes over unrelated updates in one pull request.
+
+# Versioning
+
+This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
+
+- Add every user-visible feature or bug fix to the `Unreleased` section in `CHANGELOG.md`.
+- Increment `MINOR` for backward-compatible features.
+- Increment `PATCH` for backward-compatible bug fixes.
+- Increment `MAJOR` for breaking behavior or parameter changes.
+- Keep the root `VERSION` file and `$ScriptVersion` in `claude-project-mover.ps1` identical.
+- Use `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` to update both values safely.
+- For a release, move the relevant changelog entries under `## [X.Y.Z] - YYYY-MM-DD`, then create the tag `vX.Y.Z`.
+
+GitHub Actions validates the version format and consistency automatically.

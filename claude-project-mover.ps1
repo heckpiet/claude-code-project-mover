@@ -101,6 +101,19 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$ScriptVersion = '1.0.0'
+$ScriptAuthor = 'heckpiet'
+$ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
+
+function Show-ScriptHeader {
+    $border = '=' * 78
+    Write-Host $border -ForegroundColor Green
+    Write-Host ("  Claude Code Project Mover v{0}" -f $ScriptVersion) -ForegroundColor Green
+    Write-Host '  Moves projects and safely updates their Claude Code session metadata.'
+    Write-Host ("  By {0} | {1}" -f $ScriptAuthor, $ProjectUrl) -ForegroundColor Cyan
+    Write-Host $border -ForegroundColor Green
+}
+
 function Write-Section {
     param([Parameter(Mandatory)][string]$Title)
 
@@ -637,9 +650,7 @@ function Read-YesNo {
     return $answer -match '^(y|yes|j|ja)$'
 }
 
-Write-Host '=======================================' -ForegroundColor Green
-Write-Host '  Claude Code Project Mover PowerShell' -ForegroundColor Green
-Write-Host '=======================================' -ForegroundColor Green
+Show-ScriptHeader
 
 $projectsDirectory = Get-ClaudeProjectsDirectory
 if (-not (Test-Path -LiteralPath $projectsDirectory -PathType Container)) {
