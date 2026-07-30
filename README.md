@@ -7,6 +7,8 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
+Aktuelle Version: **1.0.0**
+
 Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
 
 ## Schnellstart unter Windows
@@ -147,6 +149,8 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gu
 
 Die grafische Oberfläche verwendet `claude-project-mover.ps1` als sichere Migrationsengine. Das Skript kann auch direkt für Automatisierung oder einzelne Projekte verwendet werden.
 
+Beim Start zeigt das Skript einen kompakten Kopfbereich mit Zweck, Autor, Projektlink und der Version des tatsächlich ausgeführten Skripts.
+
 ### Letzte Claude-Code-Sitzungen anzeigen
 
 ```powershell
@@ -223,6 +227,33 @@ Schlägt die Aktivierung fehl, versucht das Skript den vorherigen Metadatenzusta
 | Windows, PowerShell 7 | `claude-project-mover.ps1` | Kommandozeile und Migrationsengine |
 | macOS | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
 | Linux | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
+
+## Versionierung und Releases
+
+Das Projekt verwendet [Semantic Versioning](https://semver.org/lang/de/) im Format `MAJOR.MINOR.PATCH`:
+
+- `MAJOR`: inkompatible Änderungen am Verhalten oder an Parametern
+- `MINOR`: neue, abwärtskompatible Funktionen
+- `PATCH`: abwärtskompatible Fehlerbehebungen
+
+Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in `claude-project-mover.ps1` eingebettet, damit sie auch dann korrekt angezeigt wird, wenn das Skript einzeln kopiert und ausgeführt wird. Die GitHub-Actions-Prüfung schlägt fehl, falls beide Werte voneinander abweichen oder keine gültige SemVer-Version enthalten.
+
+Bei jeder Änderung:
+
+1. Änderung unter `Unreleased` in `CHANGELOG.md` dokumentieren.
+2. Vor einem Release die Version mit `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` erhöhen.
+3. Die Release-Einträge unter eine datierte Versionsüberschrift verschieben.
+4. Nach dem Merge einen Git-Tag `vMAJOR.MINOR.PATCH` und ein gleichnamiges GitHub Release erstellen.
+
+Beispiele:
+
+```powershell
+# Neues abwärtskompatibles Feature: 1.0.0 -> 1.1.0
+.\scripts\Update-Version.ps1 -Part Minor
+
+# Abwärtskompatibler Bugfix: 1.1.0 -> 1.1.1
+.\scripts\Update-Version.ps1 -Part Patch
+```
 
 ## Bash-Version des Originalprojekts
 

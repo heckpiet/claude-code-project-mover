@@ -7,10 +7,12 @@ on:
       - 'agent/**'
     paths:
       - '**.ps1'
+      - 'VERSION'
       - '.github/workflows/powershell.yml'
   pull_request:
     paths:
       - '**.ps1'
+      - 'VERSION'
       - '.github/workflows/powershell.yml'
   workflow_dispatch:
 
@@ -28,7 +30,7 @@ jobs:
       - name: Parse scripts
         shell: powershell
         run: |
-          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File
+          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse
           foreach ($scriptFile in $scriptFiles) {
             $tokens = $null
             $errors = $null
@@ -43,13 +45,29 @@ jobs:
             }
           }
 
+      - name: Check version consistency
+        shell: powershell
+        run: |
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "VERSION '$version' is not a valid stable SemVer version."
+          }
+          $script = Get-Content -LiteralPath claude-project-mover.ps1 -Raw
+          $match = [regex]::Match($script, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
+          if (-not $match.Success) {
+            throw 'Could not find $ScriptVersion in claude-project-mover.ps1.'
+          }
+          if ($match.Groups[1].Value -cne $version) {
+            throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+
       - name: Run PSScriptAnalyzer
         shell: powershell
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
           $issues = @(
-            Get-ChildItem -Path . -Filter '*.ps1' -File |
+            Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse |
               ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Error }
           )
           $issues | Format-Table -AutoSize
@@ -67,7 +85,7 @@ jobs:
       - name: Parse scripts
         shell: pwsh
         run: |
-          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File
+          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse
           foreach ($scriptFile in $scriptFiles) {
             $tokens = $null
             $errors = $null
@@ -82,13 +100,29 @@ jobs:
             }
           }
 
+      - name: Check version consistency
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "VERSION '$version' is not a valid stable SemVer version."
+          }
+          $script = Get-Content -LiteralPath claude-project-mover.ps1 -Raw
+          $match = [regex]::Match($script, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
+          if (-not $match.Success) {
+            throw 'Could not find $ScriptVersion in claude-project-mover.ps1.'
+          }
+          if ($match.Groups[1].Value -cne $version) {
+            throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
           $issues = @(
-            Get-ChildItem -Path . -Filter '*.ps1' -File |
+            Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse |
               ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Error }
           )
           $issues | Format-Table -AutoSize

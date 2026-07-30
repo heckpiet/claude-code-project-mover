@@ -1,0 +1,69 @@
+#requires -Version 5.1
+
+<#
+.SYNOPSIS
+Increments the project version consistently.
+
+.DESCRIPTION
+Updates the root VERSION file and the embedded $ScriptVersion value in
+claude-project-mover.ps1. The version follows Semantic Versioning.
+
+.EXAMPLE
+.\scripts\Update-Version.ps1 -Part Minor
+
+.EXAMPLE
+.\scripts\Update-Version.ps1 -Part Patch -WhatIf
+#>
+
+[CmdletBinding(SupportsShouldProcess = $true)]
+param(
+    [Parameter(Mandatory)]
+    [ValidateSet('Major', 'Minor', 'Patch')]
+    [string]$Part
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$versionPath = Join-Path $repositoryRoot 'VERSION'
+$mainScriptPath = Join-Path $repositoryRoot 'claude-project-mover.ps1'
+
+if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
+    throw "VERSION file not found at '$versionPath'."
+}
+if (-not (Test-Path -LiteralPath $mainScriptPath -PathType Leaf)) {
+    throw "Main script not found at '$mainScriptPath'."
+}
+
+$currentVersion = [version](Get-Content -LiteralPath $versionPath -Raw).Trim()
+$major = $currentVersion.Major
+$minor = $currentVersion.Minor
+$patch = $currentVersion.Build
+
+switch ($Part) {
+    'Major' { $major++; $minor = 0; $patch = 0 }
+    'Minor' { $minor++; $patch = 0 }
+    'Patch' { $patch++ }
+}
+
+$newVersion = '{0}.{1}.{2}' -f $major, $minor, $patch
+$scriptContent = [System.IO.File]::ReadAllText($mainScriptPath)
+$versionPattern = "(?m)^\`$ScriptVersion = '[^']+'\s*$"
+if (-not [regex]::IsMatch($scriptContent, $versionPattern)) {
+    throw 'Could not find $ScriptVersion in claude-project-mover.ps1.'
+}
+
+if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersion to $newVersion")) {
+    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($versionPath, $newVersion + [Environment]::NewLine, $utf8WithoutBom)
+    $updatedScript = [regex]::Replace(
+        $scriptContent,
+        $versionPattern,
+        "`$ScriptVersion = '$newVersion'"
+    )
+    [System.IO.File]::WriteAllText($mainScriptPath, $updatedScript, $utf8WithoutBom)
+
+    Write-Host "Version updated: $currentVersion -> $newVersion" -ForegroundColor Green
+    Write-Host 'Next: update CHANGELOG.md, commit, merge, then tag the release.' -ForegroundColor Yellow
+}
