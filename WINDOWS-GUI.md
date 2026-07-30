@@ -2,6 +2,8 @@
 
 `claude-project-mover-gui.ps1` ist die interaktive Windows-Oberfläche zum sicheren Verschieben eines oder mehrerer Claude-Code-Projekte.
 
+Die Oberfläche verwendet UTF-8 mit BOM, damit deutsche Texte auch unter Windows PowerShell 5.1 korrekt dargestellt werden.
+
 ## Empfohlener Start
 
 Starte im entpackten Projektordner:
@@ -96,6 +98,8 @@ Mehrere Projekte können gleichzeitig über Checkboxen ausgewählt werden. Die �
 - den vollständigen Projektpfad
 
 Mit **Alle auswählen** und **Auswahl löschen** lässt sich die Auswahl schnell umschalten. Die ausgewählten Projekte werden nacheinander unterhalb des gewählten gemeinsamen Zielordners abgelegt.
+
+Die GUI und die PowerShell-Kommandozeile verwenden dasselbe Inventarmodul. Zeitstempel, Sitzungsanzahl und Kurzbeschreibung werden daher in beiden Oberflächen nach denselben Regeln ermittelt.
 
 Beispiel:
 

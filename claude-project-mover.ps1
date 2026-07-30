@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 
 <#
 .SYNOPSIS
@@ -104,6 +104,10 @@ $ErrorActionPreference = 'Stop'
 $ScriptVersion = '1.1.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
+$InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
+if (Test-Path -LiteralPath $InventoryModulePath -PathType Leaf) {
+    Import-Module -Name $InventoryModulePath -Force
+}
 
 function Show-ScriptHeader {
     $border = '=' * 78
@@ -276,6 +280,10 @@ function Get-ReadableProjectPath {
 
 function Get-ClaudeProjects {
     param([Parameter(Mandatory)][string]$ProjectsDirectory)
+
+    if (Get-Command -Name Get-ClaudeProjectInventory -ErrorAction SilentlyContinue) {
+        return @(Get-ClaudeProjectInventory -ProjectsDirectory $ProjectsDirectory)
+    }
 
     $projects = foreach ($directory in Get-ChildItem -LiteralPath $ProjectsDirectory -Directory -ErrorAction Stop) {
         if ($directory.Name.StartsWith('BACKUP__', [StringComparison]::OrdinalIgnoreCase) -or
@@ -450,9 +458,27 @@ function Show-ClaudeSessions {
 function Select-ClaudeProject {
     param([Parameter(Mandatory)][object[]]$Projects)
 
-    Write-Section 'Select a project to update'
+    Write-Section 'Claude Code project overview'
+    Write-Host 'Select one project by number. The most recently used projects are shown first.' -ForegroundColor DarkGray
+    Write-Host ''
     for ($index = 0; $index -lt $Projects.Count; $index++) {
-        Write-Host ('{0,3}) {1}' -f ($index + 1), $Projects[$index].Path)
+        $project = $Projects[$index]
+        $lastSession = if ($project.PSObject.Properties.Name -contains 'LastSession' -and $null -ne $project.LastSession) {
+            $project.LastSession.ToString('dd.MM.yyyy HH:mm')
+        }
+        else {
+            '-'
+        }
+        $sessionCount = if ($project.PSObject.Properties.Name -contains 'SessionCount') { $project.SessionCount } else { '?' }
+        $description = if ($project.PSObject.Properties.Name -contains 'Description') {
+            Format-SessionDescription -Text $project.Description -MaximumLength 90
+        }
+        else {
+            '(no description available)'
+        }
+
+        Write-Host ('{0,3}) {1} | {2,3} session(s) | {3}' -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
+        Write-Host ('     {0}' -f $project.Path) -ForegroundColor DarkGray
     }
 
     while ($true) {

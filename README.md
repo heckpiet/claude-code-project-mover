@@ -160,6 +160,8 @@ Beim Start zeigt das Skript einen kompakten Kopfbereich mit Zweck, Autor, Projek
 
 Dieser reine Lesemodus durchsucht das konfigurierte Claude-Verzeichnis (`CLAUDE_CONFIG_DIR` oder standardmäßig `~/.claude/projects`). Die Ausgabe wird nach der letzten Aktivität sortiert und enthält Projektpfad, lokalen Zeitstempel, Kurzbeschreibung und Sitzungs-ID. Wenn Claude keinen KI-generierten Titel gespeichert hat, wird die erste sinnvolle Benutzernachricht gekürzt als Beschreibung verwendet.
 
+Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselben Inventardaten wie die GUI: letzte Sitzung, Sitzungsanzahl, Kurzbeschreibung und vollständiger Pfad. Damit lässt sich ein unbekannter Ordner vor der Auswahl einordnen.
+
 ### Reiner Prüfmodus
 
 ```powershell
@@ -238,6 +240,8 @@ Das Projekt verwendet [Semantic Versioning](https://semver.org/lang/de/) im Form
 - `PATCH`: abwärtskompatible Fehlerbehebungen
 
 Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in `claude-project-mover.ps1` eingebettet, damit sie auch dann korrekt angezeigt wird, wenn das Skript einzeln kopiert und ausgeführt wird. Die GitHub-Actions-Prüfung schlägt fehl, falls beide Werte voneinander abweichen oder keine gültige SemVer-Version enthalten.
+
+GUI und CLI beziehen ihre Projekt- und Sitzungsübersicht gemeinsam aus `ClaudeProjectInventory.psm1`. Änderungen an Erkennung, Zeitstempeln oder Beschreibungen gelten dadurch für beide Oberflächen.
 
 Bei jeder Änderung:
 

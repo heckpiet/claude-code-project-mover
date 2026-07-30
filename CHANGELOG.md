@@ -9,6 +9,13 @@
 - Selectable GUI project overview with last-session timestamp, session count, and best-effort description
 - Recent-first project ordering and full path/description tooltips
 - README version synchronization in the version helper and CI
+- Shared GUI/CLI project inventory module for consistent timestamps and descriptions
+- Rich CLI project selection overview with session context and full paths
+- UTF-8 BOM policy for correct Windows PowerShell 5.1 localization
+
+### Changed
+
+- Refined Windows layout with clearer hierarchy, responsive spacing, selection count, styled actions, and repository link
 
 ## [1.0.0] - 2026-07-30
 
