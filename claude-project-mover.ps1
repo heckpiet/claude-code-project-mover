@@ -111,7 +111,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.2.2'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -558,8 +558,8 @@ function Test-ProjectContent {
     }
 
     $warnings = New-Object System.Collections.Generic.List[string]
-    if ($summary.FileCount -eq 0) { [void]$warnings.Add('The destination project contains no files.') }
-    if ($foundMarkers.Count -eq 0) { [void]$warnings.Add('No common project marker was found. This may still be valid for a simple project.') }
+    if ($summary.FileCount -eq 0) { [void]$warnings.Add('Der Ziel-Projektordner enthält keine Dateien.') }
+    if ($foundMarkers.Count -eq 0) { [void]$warnings.Add('Keine typische Projektdatei gefunden. Der Ordner kann dennoch ein einfaches Projekt sein.') }
 
     return [pscustomobject]@{
         Summary = $summary
@@ -703,6 +703,38 @@ function Read-YesNo {
     return $answer -match '^(y|yes|j|ja)$'
 }
 
+function Get-DestinationAssessment {
+    param(
+        [Parameter(Mandatory)][string]$CandidatePath,
+        [Parameter(Mandatory)][string]$OldPath,
+        [Parameter(Mandatory)][string]$ProjectsDirectory
+    )
+
+    $normalizedPath = Normalize-ProjectPath -Path $CandidatePath
+    if (-not [System.IO.Path]::IsPathRooted($normalizedPath)) {
+        throw 'Der Zielpfad muss ein absoluter Pfad sein.'
+    }
+    if (-not (Test-Path -LiteralPath $normalizedPath -PathType Container)) {
+        throw "Der Zielordner existiert nicht: '$normalizedPath'. Verschiebe oder kopiere zuerst den vollständigen Projektordner."
+    }
+    if ($OldPath -ieq $normalizedPath) {
+        throw 'Alter und neuer Projektpfad sind identisch.'
+    }
+
+    $newFolderName = ConvertTo-ClaudeProjectFolderName -Path $normalizedPath
+    $newMetadataPath = Join-Path $ProjectsDirectory $newFolderName
+    if (Test-Path -LiteralPath $newMetadataPath) {
+        throw "Für '$normalizedPath' existieren bereits Claude-Code-Metadaten unter '$newMetadataPath'."
+    }
+
+    return [pscustomobject]@{
+        Path = $normalizedPath
+        FolderName = $newFolderName
+        MetadataPath = $newMetadataPath
+        ProjectHealth = Test-ProjectContent -Path $normalizedPath
+    }
+}
+
 Show-ScriptHeader
 
 $projectsDirectory = Get-ClaudeProjectsDirectory
@@ -732,46 +764,59 @@ else {
 }
 
 $oldPath = Normalize-ProjectPath -Path $selectedProject.Path
+$interactiveDestination = [string]::IsNullOrWhiteSpace($NewPath)
+$destinationAssessment = $null
 
-if ([string]::IsNullOrWhiteSpace($NewPath)) {
-    Write-Section 'Enter the new project location'
-    Write-Host "Current: $oldPath" -ForegroundColor Yellow
-    while ($true) {
-        $candidatePath = Read-Host 'New path'
-        try {
-            $normalizedCandidate = Normalize-ProjectPath -Path $candidatePath
-            if (-not [System.IO.Path]::IsPathRooted($normalizedCandidate)) { throw 'Path must be absolute.' }
-            if (-not (Test-Path -LiteralPath $normalizedCandidate -PathType Container)) { throw "Folder does not exist: $normalizedCandidate" }
-            $NewPath = $normalizedCandidate
-            break
-        }
-        catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+if ($interactiveDestination) {
+    Write-Section 'Neuen Projektpfad eingeben'
+    Write-Host "Bisheriger Pfad: $oldPath" -ForegroundColor Yellow
+    Write-Host 'Gib den vollständigen Ziel-Projektordner an, nicht nur dessen übergeordneten Sammelordner.' -ForegroundColor DarkGray
+}
+
+while ($null -eq $destinationAssessment) {
+    $candidatePath = if ($interactiveDestination) { Read-Host 'Neuer Projektpfad' } else { $NewPath }
+    try {
+        $candidateAssessment = Get-DestinationAssessment -CandidatePath $candidatePath -OldPath $oldPath -ProjectsDirectory $projectsDirectory
     }
+    catch {
+        if (-not $interactiveDestination) { throw }
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        continue
+    }
+
+    foreach ($warning in $candidateAssessment.ProjectHealth.Warnings) {
+        Write-Warning $warning
+    }
+
+    if ($candidateAssessment.ProjectHealth.Warnings.Count -gt 0 -and -not $Force.IsPresent) {
+        if (-not $interactiveDestination) {
+            throw 'Der Zielordner konnte nicht eindeutig als Projekt erkannt werden. Verwende den vollständigen Projektordner oder bestätige bewusst mit -Force.'
+        }
+
+        Write-Host ''
+        Write-Host 'Der Zielpfad wirkt wie ein Sammelordner oder ein noch unvollständiges Projekt.' -ForegroundColor Yellow
+        Write-Host 'Beispiel: D:\Projekte\MeinProjekt statt nur D:\Projekte' -ForegroundColor DarkGray
+        if (-not (Read-YesNo -Prompt 'Diesen Ordner trotzdem als Projektpfad verwenden?' -Default $false)) {
+            Write-Host 'Bitte einen anderen Ziel-Projektordner eingeben.' -ForegroundColor Cyan
+            continue
+        }
+    }
+
+    $destinationAssessment = $candidateAssessment
 }
-else {
-    $NewPath = Normalize-ProjectPath -Path $NewPath
-}
 
-if (-not [System.IO.Path]::IsPathRooted($NewPath)) { throw 'NewPath must be an absolute path.' }
-if (-not (Test-Path -LiteralPath $NewPath -PathType Container)) { throw "Destination folder does not exist: '$NewPath'. Move the project folder first." }
-if ($oldPath -ieq $NewPath) { throw 'The old and new project paths are identical.' }
+$NewPath = $destinationAssessment.Path
+$newFolderName = $destinationAssessment.FolderName
+$newMetadataPath = $destinationAssessment.MetadataPath
+$projectHealth = $destinationAssessment.ProjectHealth
 
-$newFolderName = ConvertTo-ClaudeProjectFolderName -Path $NewPath
-$newMetadataPath = Join-Path $projectsDirectory $newFolderName
-if (Test-Path -LiteralPath $newMetadataPath) { throw "Claude Code metadata already exists for '$NewPath' at '$newMetadataPath'." }
-
-Write-Section 'Preflight checks'
-$projectHealth = Test-ProjectContent -Path $NewPath
+Write-Section 'Vorprüfungen'
 $metadataSummary = Get-DirectorySummary -Path $selectedProject.Directory.FullName
 $metadataHealth = Test-MetadataHealth -Path $selectedProject.Directory.FullName -ExpectedCwd $oldPath -RequireExpectedCwd
 
-Write-Host ("Destination project: {0} files, {1}, markers: {2}" -f $projectHealth.Summary.FileCount, (Format-ByteSize $projectHealth.Summary.Bytes), (($projectHealth.Markers -join ', ')))
-Write-Host ("Claude metadata: {0} JSONL files, {1} valid records, {2}" -f $metadataHealth.JsonlFileCount, $metadataHealth.ValidRecords, (Format-ByteSize $metadataSummary.Bytes))
+Write-Host ("Zielprojekt: {0} Dateien, {1}, Merkmale: {2}" -f $projectHealth.Summary.FileCount, (Format-ByteSize $projectHealth.Summary.Bytes), (($projectHealth.Markers -join ', ')))
+Write-Host ("Claude-Metadaten: {0} JSONL-Dateien, {1} gültige Datensätze, {2}" -f $metadataHealth.JsonlFileCount, $metadataHealth.ValidRecords, (Format-ByteSize $metadataSummary.Bytes))
 
-foreach ($warning in $projectHealth.Warnings) { Write-Warning $warning }
-if ($projectHealth.Warnings.Count -gt 0 -and -not $Force.IsPresent) {
-    throw 'Project-content validation produced warnings. Review the destination or use -Force to continue.'
-}
 if ($metadataHealth.Errors.Count -gt 0) {
     throw ('Metadata validation failed: ' + ($metadataHealth.Errors -join ' '))
 }
