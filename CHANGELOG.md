@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [1.4.0] - 2026-07-30
+
+### Added
+
+- Smart destination-folder suggestions derived from AI titles or first meaningful session content
+- Timestamp and shortened session-ID fallback when no meaningful content is available
+- Folder status and suggested name in Windows GUI, PowerShell CLI, and Bash project overviews
+- Editable prefilled folder name when creating a dedicated target project
+- Cross-version automated tests for deterministic, filesystem-safe suggestions
+
 ## [1.3.0] - 2026-07-30
 
 ### Added

@@ -109,6 +109,8 @@ Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen 
 
 Fehlen im bisherigen Pfad typische Projektmerkmale, fragt die GUI, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
 
+Die Projektliste zeigt dafür zusätzlich **Ordnerstatus** und **Zielordner-Vorschlag**. Der Namensdialog ist mit dem Vorschlag aus KI-Titel oder erstem sinnvollen Sitzungsinhalt vorausgefüllt. Zeitstempel, Sitzungsanzahl, Beschreibung, Pfad und Vorschlag bleiben gleichzeitig sichtbar, damit ähnliche Sitzungsgruppen leichter unterschieden werden können.
+
 Beispiel:
 
 ```text

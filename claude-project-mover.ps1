@@ -128,7 +128,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -515,6 +515,12 @@ function Show-ClaudeProjectOverview {
 
         Write-Host ('{0,3}) {1} | {2,3} Sitzung(en) | {3}' -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
         Write-Host ('     {0}' -f $project.Path) -ForegroundColor DarkGray
+        if ($project.PSObject.Properties.Name -contains 'NeedsDedicatedFolder' -and $project.NeedsDedicatedFolder) {
+            Write-Host ('     ORDNER FEHLT | Vorschlag: {0}' -f $project.SuggestedFolderName) -ForegroundColor Yellow
+        }
+        else {
+            Write-Host '     Eigener Projektordner erkannt' -ForegroundColor DarkGray
+        }
     }
 }
 
@@ -751,6 +757,25 @@ function Test-IsGeneralSourcePath {
     return @($candidates | Where-Object { $_ -ieq $normalized }).Count -gt 0
 }
 
+function Get-SmartProjectFolderSuggestion {
+    param(
+        [Parameter()][AllowNull()][string]$Description,
+        [Parameter(Mandatory)][datetime]$LastActivity,
+        [Parameter()][AllowNull()][string]$SessionId
+    )
+    $candidate = Format-SessionDescription -Text $Description -MaximumLength 100
+    if ($candidate -in @('(no description available)', '(keine Beschreibung verfügbar)')) { $candidate = '' }
+    $candidate = [regex]::Replace($candidate, '^(bitte|kannst du|ich möchte|ich will|erstelle|baue|prüfe|schau(?:e)?(?: mal)?)\s+', '', 'IgnoreCase')
+    $words = @([regex]::Matches($candidate, '[\p{L}\p{Nd}]+') | ForEach-Object { $_.Value } | Select-Object -First 8)
+    $suggestion = ($words -join '-').ToLowerInvariant()
+    if ($suggestion.Length -gt 56) { $suggestion = $suggestion.Substring(0, 56).TrimEnd('-') }
+    if ([string]::IsNullOrWhiteSpace($suggestion)) {
+        $shortSession = if ([string]::IsNullOrWhiteSpace($SessionId)) { 'session' } else { $SessionId.Substring(0, [Math]::Min(8, $SessionId.Length)) }
+        $suggestion = 'claude-projekt-{0}-{1}' -f $LastActivity.ToString('yyyyMMdd-HHmm'), $shortSession
+    }
+    return $suggestion
+}
+
 function Get-DestinationAssessment {
     param(
         [Parameter(Mandatory)][string]$CandidatePath,
@@ -792,6 +817,16 @@ if (-not (Test-Path -LiteralPath $projectsDirectory -PathType Container)) {
 
 $projects = @(Get-ClaudeProjects -ProjectsDirectory $projectsDirectory)
 if ($projects.Count -eq 0) { throw "No Claude Code projects were found in '$projectsDirectory'." }
+foreach ($project in $projects) {
+    if ($project.PSObject.Properties.Name -notcontains 'SuggestedFolderName') {
+        $latestSessionId = if ($project.PSObject.Properties.Name -contains 'LatestSessionId') { $project.LatestSessionId } else { $null }
+        $suggestion = Get-SmartProjectFolderSuggestion -Description $project.Description -LastActivity $project.LastSession -SessionId $latestSessionId
+        $needsFolder = Test-IsGeneralSourcePath -Path $project.Path
+        $project | Add-Member -NotePropertyName NeedsDedicatedFolder -NotePropertyValue $needsFolder
+        $project | Add-Member -NotePropertyName FolderStatus -NotePropertyValue $(if ($needsFolder) { 'ORDNER FEHLT' } else { 'Eigener Ordner' })
+        $project | Add-Member -NotePropertyName SuggestedFolderName -NotePropertyValue $suggestion
+    }
+}
 
 if ($ListSessions.IsPresent) {
     $sessions = Get-ClaudeSessions -Projects $projects -Limit $LastSessions
@@ -817,8 +852,7 @@ $destinationAssessment = $null
 $createDedicatedFolder = $CreateProjectFolder.IsPresent
 
 if ($interactiveDestination -and (Test-Path -LiteralPath $oldPath -PathType Container)) {
-    $sourceHealth = Test-ProjectContent -Path $oldPath
-    if ($sourceHealth.Markers.Count -eq 0 -and (Test-IsGeneralSourcePath -Path $oldPath)) {
+    if (Test-IsGeneralSourcePath -Path $oldPath) {
         Write-Host ''
         Write-Host 'Für diese Sitzungsgruppe wurde kein eigener Projektordner erkannt.' -ForegroundColor Yellow
         $createDedicatedFolder = Read-YesNo -Prompt 'Am Ziel einen eigenen Projektordner anlegen?' -Default $true
@@ -846,7 +880,12 @@ while ($null -eq $destinationAssessment) {
             }
             $folderName = $ProjectFolderName
             if ([string]::IsNullOrWhiteSpace($folderName) -and $interactiveDestination) {
-                $defaultName = ConvertTo-SafeProjectFolderName -Name $selectedProject.Description
+                $defaultName = if ($selectedProject.PSObject.Properties.Name -contains 'SuggestedFolderName') {
+                    $selectedProject.SuggestedFolderName
+                }
+                else {
+                    Get-SmartProjectFolderSuggestion -Description $selectedProject.Description -LastActivity $selectedProject.LastSession -SessionId $null
+                }
                 $enteredName = Read-Host "Name des neuen Projektordners [$defaultName]"
                 $folderName = if ([string]::IsNullOrWhiteSpace($enteredName)) { $defaultName } else { $enteredName }
             }
