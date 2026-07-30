@@ -371,7 +371,7 @@ $form.MinimumSize = New-Object System.Drawing.Size(1100, 680)
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "Claude Code Projekte sicher verschieben – v$projectVersion"
+$title.Text = "Claude Code Projekte sicher verschieben - v$projectVersion"
 $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 16)
 $title.AutoSize = $true
 $title.Location = New-Object System.Drawing.Point(20, 16)
