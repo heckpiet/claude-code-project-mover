@@ -28,12 +28,16 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $versionPath = Join-Path $repositoryRoot 'VERSION'
 $mainScriptPath = Join-Path $repositoryRoot 'claude-project-mover.ps1'
+$readmePath = Join-Path $repositoryRoot 'README.md'
 
 if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
     throw "VERSION file not found at '$versionPath'."
 }
 if (-not (Test-Path -LiteralPath $mainScriptPath -PathType Leaf)) {
     throw "Main script not found at '$mainScriptPath'."
+}
+if (-not (Test-Path -LiteralPath $readmePath -PathType Leaf)) {
+    throw "README not found at '$readmePath'."
 }
 
 $currentVersion = [version](Get-Content -LiteralPath $versionPath -Raw).Trim()
@@ -53,6 +57,11 @@ $versionPattern = "(?m)^\`$ScriptVersion = '[^']+'\s*$"
 if (-not [regex]::IsMatch($scriptContent, $versionPattern)) {
     throw 'Could not find $ScriptVersion in claude-project-mover.ps1.'
 }
+$readmeContent = [System.IO.File]::ReadAllText($readmePath)
+$readmeVersionPattern = '(?m)^Aktuelle Version: \*\*[^*]+\*\*\s*$'
+if (-not [regex]::IsMatch($readmeContent, $readmeVersionPattern)) {
+    throw 'Could not find the current version line in README.md.'
+}
 
 if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersion to $newVersion")) {
     $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
@@ -63,6 +72,12 @@ if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersio
         "`$ScriptVersion = '$newVersion'"
     )
     [System.IO.File]::WriteAllText($mainScriptPath, $updatedScript, $utf8WithoutBom)
+    $updatedReadme = [regex]::Replace(
+        $readmeContent,
+        $readmeVersionPattern,
+        "Aktuelle Version: **$newVersion**"
+    )
+    [System.IO.File]::WriteAllText($readmePath, $updatedReadme, $utf8WithoutBom)
 
     Write-Host "Version updated: $currentVersion -> $newVersion" -ForegroundColor Green
     Write-Host 'Next: update CHANGELOG.md, commit, merge, then tag the release.' -ForegroundColor Yellow

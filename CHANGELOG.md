@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.1.0] - 2026-07-30
+
+### Added
+
+- Selectable GUI project overview with last-session timestamp, session count, and best-effort description
+- Recent-first project ordering and full path/description tooltips
+- README version synchronization in the version helper and CI
+
 ## [1.0.0] - 2026-07-30
 
 ### Added
