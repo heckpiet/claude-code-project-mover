@@ -1,11 +1,21 @@
 #!/bin/bash
 
 # Claude Code Project Mover
-# Moves a Claude Code project from one path to another
+# Moves a Claude Code project from one path to another.
 
-set -e
+set -euo pipefail
 
-PROJECTS_DIR="$HOME/.claude/projects"
+SCRIPT_VERSION="1.2.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
+    FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
+    if [[ "$FILE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        SCRIPT_VERSION="$FILE_VERSION"
+    fi
+fi
+
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+PROJECTS_DIR="$CLAUDE_CONFIG_DIR/projects"
 
 # Colors for output
 RED='\033[0;31m'
@@ -13,6 +23,29 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+print_header() {
+    echo -e "${GREEN}================================================================${NC}"
+    echo -e "${GREEN}  Claude Code Project Mover v${SCRIPT_VERSION}${NC}"
+    echo "  Moves projects and safely updates their Claude Code metadata."
+    echo -e "  ${BLUE}By heckpiet | https://github.com/heckpiet/claude-code-project-mover${NC}"
+    echo -e "${GREEN}================================================================${NC}"
+    echo ""
+}
+
+show_help() {
+    cat <<EOF
+Claude Code Project Mover v${SCRIPT_VERSION}
+
+Usage:
+  ./claude-project-mover.sh
+  ./claude-project-mover.sh --list-projects
+  ./claude-project-mover.sh --version
+  ./claude-project-mover.sh --help
+
+CLAUDE_CONFIG_DIR can override the default Claude home directory (~/.claude).
+EOF
+}
 
 # Get the actual path from .jsonl files (reads cwd field)
 get_readable_path() {
@@ -34,6 +67,67 @@ get_readable_path() {
     echo "$folder_name" | sed 's/^-/\//' | sed 's/--/\/./g' | sed 's/-/\//g'
 }
 
+get_session_details() {
+    local folder_path="$1"
+    local latest_file=""
+    local session_count=0
+    local file
+
+    for file in "$folder_path"/*.jsonl; do
+        [[ -f "$file" ]] || continue
+        session_count=$((session_count + 1))
+        if [[ -z "$latest_file" || "$file" -nt "$latest_file" ]]; then
+            latest_file="$file"
+        fi
+    done
+
+    if [[ -z "$latest_file" ]]; then
+        printf '%s\t%s\t%s\n' "-" "0" "Keine Beschreibung verfügbar"
+        return
+    fi
+
+    local timestamp
+    if timestamp=$(date -r "$latest_file" "+%d.%m.%Y %H:%M" 2>/dev/null); then
+        :
+    else
+        timestamp="-"
+    fi
+
+    local description=""
+    if command -v python3 >/dev/null 2>&1; then
+        description=$(python3 - "$latest_file" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+path = sys.argv[1]
+best = ""
+with open(path, "r", encoding="utf-8", errors="replace") as stream:
+    for line in stream:
+        try:
+            item = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        title = item.get("aiTitle") or item.get("title")
+        if isinstance(title, str) and title.strip():
+            best = title.strip()
+        message = item.get("message")
+        if not best and isinstance(message, dict) and message.get("role") == "user":
+            content = message.get("content")
+            if isinstance(content, str):
+                best = content.strip()
+            elif isinstance(content, list):
+                texts = [part.get("text", "") for part in content if isinstance(part, dict)]
+                best = " ".join(texts).strip()
+        if best:
+            break
+print(" ".join(best.split())[:100])
+PY
+)
+    fi
+    [[ -n "$description" ]] || description="Keine Beschreibung verfügbar"
+    printf '%s\t%s\t%s\n' "$timestamp" "$session_count" "$description"
+}
+
 # Convert path to folder name
 # /Users/martin/foo -> -Users-martin-foo
 # /Users/martin/.config/omp -> -Users-martin--config-omp (dot = double dash)
@@ -46,23 +140,33 @@ get_folder_name() {
 # List all projects with numbers
 list_projects() {
     local i=1
+    printf "${BLUE}%-4s %-17s %-9s %-42s %s${NC}\n" "Nr." "Letzte Sitzung" "Sessions" "Beschreibung" "Projektpfad"
+    printf '%s\n' "--------------------------------------------------------------------------------------------------------------"
     for dir in "$PROJECTS_DIR"/-*/; do
         if [[ -d "$dir" ]]; then
             local folder_name=$(basename "$dir")
             local readable_path=$(get_readable_path "$folder_name")
-            printf "${BLUE}%3d)${NC} %s\n" "$i" "$readable_path"
+            local details timestamp session_count description
+            details=$(get_session_details "$dir")
+            IFS=$'\t' read -r timestamp session_count description <<< "$details"
+            printf "${BLUE}%3d)${NC} %-17s %-9s %-42.42s %s\n" \
+                "$i" "$timestamp" "$session_count" "$description" "$readable_path"
             i=$((i + 1))
         fi
     done
 }
 
-# Emit "folder_name<TAB>readable_path" per project (machine-readable)
+# Emit rich machine-readable data for fzf.
 list_projects_data() {
     for dir in "$PROJECTS_DIR"/-*/; do
         if [[ -d "$dir" ]]; then
             local folder_name=$(basename "$dir")
             local readable_path=$(get_readable_path "$folder_name")
-            printf '%s\t%s\n' "$folder_name" "$readable_path"
+            local details timestamp session_count description
+            details=$(get_session_details "$dir")
+            IFS=$'\t' read -r timestamp session_count description <<< "$details"
+            printf '%s\t%s | %s Sessions | %s | %s\n' \
+                "$folder_name" "$timestamp" "$session_count" "$description" "$readable_path"
         fi
     done
 }
@@ -153,10 +257,34 @@ move_project() {
 
 # Main script
 main() {
-    echo -e "${GREEN}=======================================${NC}"
-    echo -e "${GREEN}  Claude Code Project Mover v1.1.0${NC}"
-    echo -e "${GREEN}=======================================${NC}"
-    echo ""
+    case "${1:-}" in
+        --version|-v)
+            echo "Claude Code Project Mover v${SCRIPT_VERSION}"
+            exit 0
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        --list-projects)
+            print_header
+            if [[ ! -d "$PROJECTS_DIR" ]]; then
+                echo -e "${RED}Error: Projects directory not found at $PROJECTS_DIR${NC}"
+                exit 1
+            fi
+            list_projects
+            exit 0
+            ;;
+        "")
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            show_help >&2
+            exit 2
+            ;;
+    esac
+
+    print_header
 
     # Check if projects directory exists
     if [[ ! -d "$PROJECTS_DIR" ]]; then
@@ -179,8 +307,8 @@ main() {
     if command -v fzf >/dev/null 2>&1; then
         selected_folder=$(list_projects_data \
             | fzf --delimiter=$'\t' --with-nth=2 \
-                  --prompt='Search project: ' --height=40% --reverse \
-                  --header='Type to filter, Enter to select, Esc to cancel' \
+                  --prompt='Search project: ' --height=60% --reverse \
+                  --header='Last session | Sessions | Description | Project path' \
             | cut -f1)
 
         if [[ -z "$selected_folder" ]]; then

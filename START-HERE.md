@@ -4,14 +4,16 @@ Diese Datei beschreibt den empfohlenen Weg, ein oder mehrere Claude-Code-Projekt
 
 ## Vorbereitung
 
-1. Repository als ZIP herunterladen und vollständig entpacken.
+1. Über **Code → Download ZIP** den vollständigen Quellordner herunterladen und entpacken oder das Repository klonen. Ein separates Release-Paket ist noch nicht veröffentlicht.
 2. Claude Code sowie alle Sitzungen der betroffenen Projekte schließen.
-3. Prüfen, dass diese drei Dateien im gleichen Ordner liegen:
+3. Prüfen, dass diese Dateien im gleichen Ordner liegen:
 
 ```text
 Start-ClaudeProjectMover.cmd
 claude-project-mover-gui.ps1
 claude-project-mover.ps1
+ClaudeProjectInventory.psm1
+VERSION
 ```
 
 ## Start

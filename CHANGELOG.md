@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.2.0] - 2026-07-30
+
+### Added
+
+- Rich Bash project overview with last-session timestamp, session count, description, and project path
+- Bash options for project listing, version output, help, and custom `CLAUDE_CONFIG_DIR`
+- CMD options for GUI, CLI, project overview, help, and version output
+- Bash syntax validation in GitHub Actions
+
+### Changed
+
+- Version updates and CI consistency checks now cover PowerShell, Bash, CMD, README, and `VERSION`
+- Windows starter validates all shared runtime files before launch
+- Download documentation now distinguishes GitHub source ZIPs from future release packages
+
 ## [1.1.1] - 2026-07-30
 
 ### Added

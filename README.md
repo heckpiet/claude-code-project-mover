@@ -7,12 +7,12 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.1.1**
+Aktuelle Version: **1.2.0**
 Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
 
 ## Schnellstart unter Windows
 
-1. Repository als ZIP herunterladen und vollständig entpacken.
+1. Über **Code → Download ZIP** den vollständigen Quellordner laden und entpacken oder das Repository mit Git klonen. Ein separates GitHub Release-Paket folgt nach Abschluss der Skriptarbeiten.
 2. Claude Code und alle betroffenen Sitzungen schließen.
 3. `Start-ClaudeProjectMover.cmd` doppelt anklicken.
 4. Projekte auswählen und **Quellen prüfen** anklicken.
@@ -234,11 +234,11 @@ Schlägt die Aktivierung fehl, versucht das Skript den vorherigen Metadatenzusta
 
 | Plattform | Datei | Umfang |
 | --- | --- | --- |
-| Windows | `Start-ClaudeProjectMover.cmd` | empfohlener Starter |
+| Windows | `Start-ClaudeProjectMover.cmd` | GUI, CLI und Projektübersicht starten |
 | Windows | `claude-project-mover-gui.ps1` | native Oberfläche und Mehrfachauswahl |
 | Windows, PowerShell 7 | `claude-project-mover.ps1` | Kommandozeile und Migrationsengine |
-| macOS | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
-| Linux | `claude-project-mover.sh` | ursprünglicher Bash-Ablauf |
+| macOS | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
+| Linux | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
 
 ## Versionierung und Releases
 
@@ -248,7 +248,7 @@ Das Projekt verwendet [Semantic Versioning](https://semver.org/lang/de/) im Form
 - `MINOR`: neue, abwärtskompatible Funktionen
 - `PATCH`: abwärtskompatible Fehlerbehebungen
 
-Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in `claude-project-mover.ps1` eingebettet, damit sie auch dann korrekt angezeigt wird, wenn das Skript einzeln kopiert und ausgeführt wird. Die GitHub-Actions-Prüfung schlägt fehl, falls beide Werte voneinander abweichen oder keine gültige SemVer-Version enthalten.
+Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in `claude-project-mover.ps1`, `claude-project-mover.sh` und `Start-ClaudeProjectMover.cmd` eingebettet, damit sie auch bei einem direkten Aufruf korrekt angezeigt wird. Die GitHub-Actions-Prüfung schlägt fehl, sobald ein Einstiegspunkt oder die README davon abweicht.
 
 GUI und CLI beziehen ihre Projekt- und Sitzungsübersicht gemeinsam aus `ClaudeProjectInventory.psm1`. Änderungen an Erkennung, Zeitstempeln oder Beschreibungen gelten dadurch für beide Oberflächen.
 
@@ -274,7 +274,10 @@ Beispiele:
 ```bash
 chmod +x claude-project-mover.sh
 ./claude-project-mover.sh
+./claude-project-mover.sh --list-projects
 ```
+
+Die Bash-Übersicht zeigt den letzten Sitzungszeitpunkt, die Sitzungsanzahl, eine bestmögliche Kurzbeschreibung und den Projektpfad. Mit installiertem `python3` werden Beschreibungen robuster aus JSONL gelesen; ohne Python bleibt die Übersicht vollständig nutzbar und verwendet einen neutralen Beschreibungstext.
 
 Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das Skript eine nummerierte Liste an.
 
