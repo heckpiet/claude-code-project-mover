@@ -79,6 +79,8 @@ Die PowerShell-Engine:
 
 - erkennt das Standardverzeichnis `~/.claude/projects`
 - berücksichtigt `CLAUDE_CONFIG_DIR`
+- zeigt die zuletzt verwendeten Claude-Code-Sitzungen mit lokalem Datum und Uhrzeit
+- verwendet den von Claude erzeugten Sitzungstitel oder ersatzweise die erste Benutzernachricht als Kurzbeschreibung
 - liest den bisherigen Projektpfad aus den Sitzungsdaten
 - prüft JSON- und JSONL-Dateien vor der Änderung
 - aktualisiert normale, JSON-escapte und mit `/` gespeicherte Pfadvarianten
@@ -145,6 +147,14 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gu
 
 Die grafische Oberfläche verwendet `claude-project-mover.ps1` als sichere Migrationsengine. Das Skript kann auch direkt für Automatisierung oder einzelne Projekte verwendet werden.
 
+### Letzte Claude-Code-Sitzungen anzeigen
+
+```powershell
+.\claude-project-mover.ps1 -ListSessions -LastSessions 20
+```
+
+Dieser reine Lesemodus durchsucht das konfigurierte Claude-Verzeichnis (`CLAUDE_CONFIG_DIR` oder standardmäßig `~/.claude/projects`). Die Ausgabe wird nach der letzten Aktivität sortiert und enthält Projektpfad, lokalen Zeitstempel, Kurzbeschreibung und Sitzungs-ID. Wenn Claude keinen KI-generierten Titel gespeichert hat, wird die erste sinnvolle Benutzernachricht gekürzt als Beschreibung verwendet.
+
 ### Reiner Prüfmodus
 
 ```powershell
@@ -176,6 +186,8 @@ Die grafische Oberfläche verwendet `claude-project-mover.ps1` als sichere Migra
 | `-MinimumFreeSpaceGB` | Mindestfreiraum am Ziel, Standard `1` GB |
 | `-SkipSpaceCheck` | Überspringt die Speicherplatzprüfung, etwa bei problematischen UNC-Pfaden |
 | `-Force` | Erlaubt das Fortsetzen bei nicht kritischen Projektwarnungen |
+| `-ListSessions` | Zeigt die zuletzt verwendeten Claude-Code-Sitzungen an und beendet das Skript ohne Änderungen |
+| `-LastSessions` | Begrenzt die Sitzungsliste; Standard `10`, Maximum `1000` |
 | `-WhatIf` | Zeigt die geplante Änderung ohne Ausführung |
 
 ## Speicherplatzprüfung
