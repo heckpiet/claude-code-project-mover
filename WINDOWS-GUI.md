@@ -103,6 +103,8 @@ Mit **Alle auswählen** und **Auswahl löschen** lässt sich die Auswahl schnell
 
 Die GUI und die PowerShell-Kommandozeile verwenden dasselbe Inventarmodul. Zeitstempel, Sitzungsanzahl und Kurzbeschreibung werden daher in beiden Oberflächen nach denselben Regeln ermittelt.
 
+Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen gemeinsamen Sammelordner und erzeugt darin je Projekt einen Unterordner. Die direkte PowerShell-Kommandozeile erwartet bereits den vollständigen Ziel-Projektordner und führt bei unklaren Projektmerkmalen durch eine erneute Auswahl.
+
 Beispiel:
 
 ```text

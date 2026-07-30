@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [1.2.2] - 2026-07-30
+
+### Fixed
+
+- Replaced the interactive CLI warning exception with a short explanation, explicit confirmation, and immediate destination re-entry
+- Clarified the difference between the GUI collection folder and the CLI's complete destination project path
+- Kept non-interactive validation strict unless `-Force` is explicitly supplied
+- Localized destination warnings and preflight summaries for the Windows CLI
+
 ## [1.2.1] - 2026-07-30
 
 ### Changed

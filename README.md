@@ -8,8 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.2.1**
-
+Aktuelle Version: **1.2.2**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -175,6 +174,8 @@ Beim Start zeigt das Skript einen kompakten Kopfbereich mit Zweck, Autor, Projek
 Dieser reine Lesemodus durchsucht das konfigurierte Claude-Verzeichnis (`CLAUDE_CONFIG_DIR` oder standardmäßig `~/.claude/projects`). Die Ausgabe wird nach der letzten Aktivität sortiert und enthält Projektpfad, lokalen Zeitstempel, Kurzbeschreibung und Sitzungs-ID. Wenn Claude keinen KI-generierten Titel gespeichert hat, wird die erste sinnvolle Benutzernachricht gekürzt als Beschreibung verwendet.
 
 Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselben Inventardaten wie die GUI: letzte Sitzung, Sitzungsanzahl, Kurzbeschreibung und vollständiger Pfad. Damit lässt sich ein unbekannter Ordner vor der Auswahl einordnen.
+
+Beim Zielpfad muss der **vollständige neue Projektordner** angegeben werden, nicht nur ein übergeordneter Sammelordner. Kann das interaktive CLI dort keine typische Projektdatei erkennen, erklärt es die Warnung und lässt unmittelbar einen anderen Pfad eingeben oder die Auswahl bewusst bestätigen. Automatisierte Aufrufe bleiben streng und benötigen in diesem Fall weiterhin `-Force`.
 
 ### Projektübersicht ohne Migration
 

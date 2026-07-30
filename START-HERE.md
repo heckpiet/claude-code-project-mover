@@ -45,6 +45,8 @@ Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows Powe
 6. **Claude-Metadaten als ZIP sichern** aktiviert lassen.
 7. Auf **Verschieben** klicken und den Plan bestätigen.
 
+Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
+
 ## Was vor dem Verschieben geprüft wird
 
 Das Tool kontrolliert für jedes ausgewählte Projekt:
