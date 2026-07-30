@@ -52,13 +52,49 @@ function Get-ClaudeConfigPath {
     return Join-Path $HOME '.claude'
 }
 
+function ConvertTo-SessionMessageText {
+    param([Parameter()][AllowNull()]$Message)
+
+    if ($null -eq $Message) { return $null }
+    if ($Message -is [string]) { return $Message }
+    if ($Message.PSObject.Properties.Name -notcontains 'content') { return $null }
+
+    if ($Message.content -is [string]) { return [string]$Message.content }
+    $textParts = foreach ($part in @($Message.content)) {
+        if ($null -eq $part) { continue }
+        if ($part -is [string]) { $part; continue }
+        if ($part.PSObject.Properties.Name -contains 'type' -and [string]$part.type -ne 'text') { continue }
+        if ($part.PSObject.Properties.Name -contains 'text') { [string]$part.text }
+    }
+    return ($textParts -join ' ')
+}
+
+function Format-SessionDescription {
+    param(
+        [Parameter()][AllowNull()][string]$Text,
+        [Parameter()][int]$MaximumLength = 140
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) { return '(keine Beschreibung verfügbar)' }
+    $cleanText = [regex]::Replace($Text, '<system-reminder>.*?</system-reminder>', ' ', 'Singleline,IgnoreCase')
+    $cleanText = [regex]::Replace($cleanText, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($cleanText)) { return '(keine Beschreibung verfügbar)' }
+    if ($cleanText.Length -le $MaximumLength) { return $cleanText }
+    return $cleanText.Substring(0, $MaximumLength - 1).TrimEnd() + [char]0x2026
+}
+
 function Get-CwdValuesFromJsonl {
     param([Parameter(Mandatory)][System.IO.FileInfo[]]$Files)
 
     $values = New-Object System.Collections.Generic.List[string]
+    $sessions = New-Object System.Collections.Generic.List[object]
     $validRecords = 0
     $invalidRecords = 0
     foreach ($file in $Files) {
+        $latestTimestamp = $null
+        $title = $null
+        $firstUserMessage = $null
+
         foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try {
@@ -68,15 +104,57 @@ function Get-CwdValuesFromJsonl {
                     -not [string]::IsNullOrWhiteSpace([string]$record.cwd)) {
                     [void]$values.Add([System.IO.Path]::GetFullPath([string]$record.cwd))
                 }
+
+                if ($record.PSObject.Properties.Name -contains 'timestamp' -and
+                    -not [string]::IsNullOrWhiteSpace([string]$record.timestamp)) {
+                    $parsedTimestamp = [datetimeoffset]::MinValue
+                    if ([datetimeoffset]::TryParse(
+                            [string]$record.timestamp,
+                            [Globalization.CultureInfo]::InvariantCulture,
+                            [Globalization.DateTimeStyles]::AssumeUniversal,
+                            [ref]$parsedTimestamp) -and
+                        ($null -eq $latestTimestamp -or $parsedTimestamp -gt $latestTimestamp)) {
+                        $latestTimestamp = $parsedTimestamp
+                    }
+                }
+
+                if ([string]::IsNullOrWhiteSpace($title) -and
+                    $record.PSObject.Properties.Name -contains 'aiTitle' -and
+                    -not [string]::IsNullOrWhiteSpace([string]$record.aiTitle)) {
+                    $title = [string]$record.aiTitle
+                }
+
+                $isMeta = $record.PSObject.Properties.Name -contains 'isMeta' -and [bool]$record.isMeta
+                if ([string]::IsNullOrWhiteSpace($firstUserMessage) -and -not $isMeta -and
+                    $record.PSObject.Properties.Name -contains 'type' -and
+                    [string]$record.type -eq 'user' -and
+                    $record.PSObject.Properties.Name -contains 'message') {
+                    $candidate = ConvertTo-SessionMessageText -Message $record.message
+                    if (-not [string]::IsNullOrWhiteSpace($candidate)) { $firstUserMessage = $candidate }
+                }
             }
             catch { $invalidRecords++ }
         }
+
+        $activity = if ($null -ne $latestTimestamp) {
+            $latestTimestamp.ToLocalTime().DateTime
+        }
+        else {
+            $file.LastWriteTime
+        }
+        $description = if (-not [string]::IsNullOrWhiteSpace($title)) { $title } else { $firstUserMessage }
+        [void]$sessions.Add([pscustomobject]@{
+            LastActivity = $activity
+            Description = Format-SessionDescription -Text $description
+            SessionId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+        })
     }
 
     return [pscustomobject]@{
         Values = @($values | Select-Object -Unique)
         ValidRecords = $validRecords
         InvalidRecords = $invalidRecords
+        Sessions = @($sessions | Sort-Object LastActivity -Descending)
     }
 }
 
@@ -91,6 +169,7 @@ function Get-ClaudeProjects {
         $sessionData = Get-CwdValuesFromJsonl -Files $jsonlFiles
         if ($sessionData.Values.Count -eq 0) { continue }
         $sourcePath = $sessionData.Values[0]
+        $latestSession = $sessionData.Sessions | Select-Object -First 1
 
         [pscustomobject]@{
             DisplayName = $sourcePath
@@ -98,10 +177,13 @@ function Get-ClaudeProjects {
             MetadataPath = $directory.FullName
             JsonlFiles = $jsonlFiles
             SessionData = $sessionData
+            SessionCount = $sessionData.Sessions.Count
+            LastSession = $latestSession.LastActivity
+            Description = $latestSession.Description
             Validation = $null
         }
     }
-    return @($items | Sort-Object DisplayName)
+    return @($items | Sort-Object LastSession -Descending)
 }
 
 function Get-ProjectMarkers {
@@ -269,27 +351,34 @@ function Format-Bytes {
 $configPath = Get-ClaudeConfigPath
 $projectsPath = Join-Path $configPath 'projects'
 $coreScript = Join-Path $PSScriptRoot 'claude-project-mover.ps1'
+$versionFile = Join-Path $PSScriptRoot 'VERSION'
+$projectVersion = if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
+    (Get-Content -LiteralPath $versionFile -Raw).Trim()
+}
+else {
+    'unbekannt'
+}
 if (-not (Test-Path -LiteralPath $projectsPath -PathType Container)) { throw "Claude-Code-Projektverzeichnis nicht gefunden: '$projectsPath'." }
 if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) { throw "Migrationsskript nicht gefunden: '$coreScript'." }
 $projects = Get-ClaudeProjects -ProjectsDirectory $projectsPath
 if ($projects.Count -eq 0) { throw 'Keine Claude-Code-Projekte mit lesbaren Sitzungsdaten gefunden.' }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Claude Code Project Mover'
+$form.Text = "Claude Code Project Mover v$projectVersion"
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(1080, 760)
-$form.MinimumSize = New-Object System.Drawing.Size(900, 650)
+$form.Size = New-Object System.Drawing.Size(1420, 800)
+$form.MinimumSize = New-Object System.Drawing.Size(1100, 680)
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = 'Claude Code Projekte sicher verschieben'
+$title.Text = "Claude Code Projekte sicher verschieben – v$projectVersion"
 $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 16)
 $title.AutoSize = $true
 $title.Location = New-Object System.Drawing.Point(20, 16)
 $form.Controls.Add($title)
 
 $description = New-Object System.Windows.Forms.Label
-$description.Text = 'Projekte auswählen, Quellen prüfen, Zielordner festlegen und erst danach verschieben.'
+$description.Text = 'Letzte Sitzungen prüfen, Projekte per Checkbox auswählen, Quellen validieren und anschließend verschieben.'
 $description.AutoSize = $true
 $description.Location = New-Object System.Drawing.Point(23, 50)
 $form.Controls.Add($description)
@@ -301,18 +390,26 @@ $list.GridLines = $true
 $list.View = [System.Windows.Forms.View]::Details
 $list.Anchor = 'Top,Left,Right,Bottom'
 $list.Location = New-Object System.Drawing.Point(24, 82)
-$list.Size = New-Object System.Drawing.Size(1015, 345)
-[void]$list.Columns.Add('Status', 80)
-[void]$list.Columns.Add('Quellprojekt', 500)
-[void]$list.Columns.Add('Typ', 160)
-[void]$list.Columns.Add('Dateien', 80)
-[void]$list.Columns.Add('Größe', 100)
+$list.Size = New-Object System.Drawing.Size(1355, 375)
+$list.ShowItemToolTips = $true
+[void]$list.Columns.Add('Status', 90)
+[void]$list.Columns.Add('Letzte Sitzung', 140)
+[void]$list.Columns.Add('Sessions', 75)
+[void]$list.Columns.Add('Beschreibung', 340)
+[void]$list.Columns.Add('Quellprojekt', 430)
+[void]$list.Columns.Add('Typ', 120)
+[void]$list.Columns.Add('Dateien', 70)
+[void]$list.Columns.Add('Größe', 90)
 foreach ($project in $projects) {
     $item = New-Object System.Windows.Forms.ListViewItem('NICHT GEPRÜFT')
+    [void]$item.SubItems.Add($project.LastSession.ToString('dd.MM.yyyy HH:mm'))
+    [void]$item.SubItems.Add([string]$project.SessionCount)
+    [void]$item.SubItems.Add($project.Description)
     [void]$item.SubItems.Add($project.SourcePath)
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
+    $item.ToolTipText = "$($project.Description)`r`n$($project.SourcePath)"
     $item.Tag = $project
     [void]$list.Items.Add($item)
 }
@@ -320,21 +417,21 @@ $form.Controls.Add($list)
 
 $selectAll = New-Object System.Windows.Forms.Button
 $selectAll.Text = 'Alle auswählen'
-$selectAll.Location = New-Object System.Drawing.Point(24, 438)
+$selectAll.Location = New-Object System.Drawing.Point(24, 468)
 $selectAll.Size = New-Object System.Drawing.Size(110, 30)
 $selectAll.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $true } })
 $form.Controls.Add($selectAll)
 
 $clear = New-Object System.Windows.Forms.Button
 $clear.Text = 'Auswahl löschen'
-$clear.Location = New-Object System.Drawing.Point(142, 438)
+$clear.Location = New-Object System.Drawing.Point(142, 468)
 $clear.Size = New-Object System.Drawing.Size(120, 30)
 $clear.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $false } })
 $form.Controls.Add($clear)
 
 $validate = New-Object System.Windows.Forms.Button
 $validate.Text = 'Quellen prüfen'
-$validate.Location = New-Object System.Drawing.Point(270, 438)
+$validate.Location = New-Object System.Drawing.Point(270, 468)
 $validate.Size = New-Object System.Drawing.Size(125, 30)
 $form.Controls.Add($validate)
 
@@ -343,27 +440,27 @@ $details.Multiline = $true
 $details.ReadOnly = $true
 $details.ScrollBars = 'Vertical'
 $details.Anchor = 'Left,Right,Bottom'
-$details.Location = New-Object System.Drawing.Point(24, 478)
-$details.Size = New-Object System.Drawing.Size(1015, 82)
-$details.Text = 'Wähle Projekte aus und klicke auf "Quellen prüfen".'
+$details.Location = New-Object System.Drawing.Point(24, 508)
+$details.Size = New-Object System.Drawing.Size(1355, 82)
+$details.Text = 'Wähle Projekte anhand von Zeitstempel und Beschreibung aus und klicke auf "Quellen prüfen".'
 $form.Controls.Add($details)
 
 $targetLabel = New-Object System.Windows.Forms.Label
 $targetLabel.Text = 'Gemeinsamer Zielordner'
 $targetLabel.AutoSize = $true
-$targetLabel.Location = New-Object System.Drawing.Point(24, 574)
+$targetLabel.Location = New-Object System.Drawing.Point(24, 604)
 $form.Controls.Add($targetLabel)
 
 $targetText = New-Object System.Windows.Forms.TextBox
 $targetText.Anchor = 'Left,Right,Bottom'
-$targetText.Location = New-Object System.Drawing.Point(24, 596)
-$targetText.Size = New-Object System.Drawing.Size(880, 25)
+$targetText.Location = New-Object System.Drawing.Point(24, 626)
+$targetText.Size = New-Object System.Drawing.Size(1220, 25)
 $form.Controls.Add($targetText)
 
 $browse = New-Object System.Windows.Forms.Button
 $browse.Text = 'Durchsuchen ...'
 $browse.Anchor = 'Right,Bottom'
-$browse.Location = New-Object System.Drawing.Point(914, 593)
+$browse.Location = New-Object System.Drawing.Point(1254, 623)
 $browse.Size = New-Object System.Drawing.Size(125, 30)
 $browse.Add_Click({
     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -378,27 +475,27 @@ $moveFiles = New-Object System.Windows.Forms.CheckBox
 $moveFiles.Text = 'Projektverzeichnisse physisch verschieben'
 $moveFiles.Checked = -not $NoProjectMove.IsPresent
 $moveFiles.AutoSize = $true
-$moveFiles.Location = New-Object System.Drawing.Point(24, 635)
+$moveFiles.Location = New-Object System.Drawing.Point(24, 665)
 $form.Controls.Add($moveFiles)
 
 $backup = New-Object System.Windows.Forms.CheckBox
 $backup.Text = 'Claude-Metadaten als ZIP sichern'
 $backup.Checked = $true
 $backup.AutoSize = $true
-$backup.Location = New-Object System.Drawing.Point(310, 635)
+$backup.Location = New-Object System.Drawing.Point(310, 665)
 $form.Controls.Add($backup)
 
 $status = New-Object System.Windows.Forms.Label
 $status.Text = 'Bereit'
 $status.Anchor = 'Left,Right,Bottom'
-$status.Location = New-Object System.Drawing.Point(24, 677)
+$status.Location = New-Object System.Drawing.Point(24, 707)
 $status.Size = New-Object System.Drawing.Size(730, 25)
 $form.Controls.Add($status)
 
 $cancel = New-Object System.Windows.Forms.Button
 $cancel.Text = 'Abbrechen'
 $cancel.Anchor = 'Right,Bottom'
-$cancel.Location = New-Object System.Drawing.Point(800, 670)
+$cancel.Location = New-Object System.Drawing.Point(1140, 700)
 $cancel.Size = New-Object System.Drawing.Size(105, 34)
 $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 $form.Controls.Add($cancel)
@@ -407,7 +504,7 @@ $form.CancelButton = $cancel
 $move = New-Object System.Windows.Forms.Button
 $move.Text = 'Verschieben'
 $move.Anchor = 'Right,Bottom'
-$move.Location = New-Object System.Drawing.Point(914, 670)
+$move.Location = New-Object System.Drawing.Point(1254, 700)
 $move.Size = New-Object System.Drawing.Size(125, 34)
 $form.Controls.Add($move)
 $form.AcceptButton = $move
@@ -422,9 +519,9 @@ $validateAction = {
         $result = Test-SourceProject -Project $item.Tag
         $item.Tag.Validation = $result
         $item.SubItems[0].Text = $result.Status
-        $item.SubItems[2].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
-        $item.SubItems[3].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
-        $item.SubItems[4].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
+        $item.SubItems[5].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
+        $item.SubItems[6].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
+        $item.SubItems[7].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
         if ($result.Status -eq 'FEHLER') { $item.ForeColor = [System.Drawing.Color]::DarkRed }
         elseif ($result.Status -eq 'WARNUNG') { $item.ForeColor = [System.Drawing.Color]::DarkOrange }
         else { $item.ForeColor = [System.Drawing.Color]::DarkGreen }

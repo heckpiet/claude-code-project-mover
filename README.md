@@ -7,8 +7,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.0.0**
-
+Aktuelle Version: **1.1.0**
 Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
 
 ## Schnellstart unter Windows
@@ -33,6 +32,8 @@ Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HER
 
 - native Windows-Forms-Oberfläche
 - Auswahl eines oder mehrerer Claude-Code-Projekte
+- nach letzter Aktivität sortierte Übersicht mit Zeitstempel, Sitzungsanzahl und Kurzbeschreibung
+- Projekte direkt per Checkbox an- und abwählen
 - gemeinsamer Zielordner über den Windows-Ordnerdialog
 - optionales physisches Verschieben der echten Projektordner
 - reiner Metadatenmodus für bereits manuell verschobene Projekte

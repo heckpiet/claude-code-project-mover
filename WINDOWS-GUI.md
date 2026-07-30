@@ -25,13 +25,14 @@ pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-
 ## Interaktiver Ablauf
 
 1. Claude Code vollständig schließen.
-2. Ein oder mehrere Quellprojekte in der Liste markieren.
-3. Auf **Quellen prüfen** klicken.
-4. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
-5. Einen gemeinsamen Zielordner auswählen.
-6. **Projektverzeichnisse physisch verschieben** aktiviert lassen, wenn das Tool auch die echten Dateien bewegen soll.
-7. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
-8. Auf **Verschieben** klicken und den geprüften Plan bestätigen.
+2. Zeitstempel, Sitzungsanzahl und Kurzbeschreibung der gefundenen Projekte prüfen.
+3. Ein oder mehrere Quellprojekte über die Checkboxen an- oder abwählen.
+4. Auf **Quellen prüfen** klicken.
+5. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
+6. Einen gemeinsamen Zielordner auswählen.
+7. **Projektverzeichnisse physisch verschieben** aktiviert lassen, wenn das Tool auch die echten Dateien bewegen soll.
+8. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
+9. Auf **Verschieben** klicken und den geprüften Plan bestätigen.
 
 Beim Klick auf **Verschieben** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verschoben.
 
@@ -87,7 +88,14 @@ Schlägt diese Prüfung oder die anschließende Claude-Metadatenmigration fehl, 
 
 ## Mehrere Projekte
 
-Mehrere Projekte können gleichzeitig ausgewählt werden. Sie werden nacheinander unterhalb des gewählten gemeinsamen Zielordners abgelegt.
+Mehrere Projekte können gleichzeitig über Checkboxen ausgewählt werden. Die Übersicht ist nach der letzten Claude-Code-Sitzung sortiert und zeigt:
+
+- Datum und Uhrzeit der letzten Sitzung
+- Anzahl der gespeicherten Sitzungen
+- den von Claude erzeugten Titel oder ersatzweise die erste sinnvolle Benutzernachricht
+- den vollständigen Projektpfad
+
+Mit **Alle auswählen** und **Auswahl löschen** lässt sich die Auswahl schnell umschalten. Die ausgewählten Projekte werden nacheinander unterhalb des gewählten gemeinsamen Zielordners abgelegt.
 
 Beispiel:
 

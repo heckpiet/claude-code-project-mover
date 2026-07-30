@@ -101,7 +101,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 

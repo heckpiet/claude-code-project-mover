@@ -60,6 +60,10 @@ jobs:
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
           }
+          $readme = Get-Content -LiteralPath README.md -Raw
+          if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
+            throw "README.md does not show current version '$version'."
+          }
 
       - name: Run PSScriptAnalyzer
         shell: powershell
@@ -114,6 +118,10 @@ jobs:
           }
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+          $readme = Get-Content -LiteralPath README.md -Raw
+          if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
+            throw "README.md does not show current version '$version'."
           }
 
       - name: Run PSScriptAnalyzer
