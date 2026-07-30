@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## [1.5.0] - 2026-07-30
+
+### Added
+
+- Portable `.claude-project-origin.json` provenance manifest in each successfully migrated target project
+- Stable project ID and append-only transfer history across later moves or copies
+- Source computer, user, operating system, paths, timestamps, time zone, transfer mode, tool version, project statistics, session counts, and verification results
+- GUI control and CLI switch for deliberately disabling provenance metadata
+- Native Windows GUI choice between verified move, verified copy, and metadata-only operation
+- Provenance schema and verification coverage in the folderless migration integration test
+- Bash provenance output with history preservation when Python 3 is available
+
+### Security
+
+- Provenance excludes session content, credentials, IP addresses, hardware identifiers, and Windows SIDs
+
 ## [1.4.0] - 2026-07-30
 
 ### Added

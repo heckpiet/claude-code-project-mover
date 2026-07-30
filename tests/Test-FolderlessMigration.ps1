@@ -36,6 +36,27 @@ try {
     $updatedContent = [System.IO.File]::ReadAllText((Join-Path $newMetadata 'session.jsonl'))
     if ($updatedContent -notlike ('*' + $targetProject.Replace('\', '\\') + '*')) { throw 'Updated metadata does not contain the new cwd path.' }
 
+    $originPath = Join-Path $targetProject '.claude-project-origin.json'
+    if (-not (Test-Path -LiteralPath $originPath -PathType Leaf)) { throw 'Origin metadata manifest was not created.' }
+    $origin = Get-Content -LiteralPath $originPath -Raw | ConvertFrom-Json
+    if ($origin.schemaVersion -ne 1 -or [string]::IsNullOrWhiteSpace([string]$origin.projectId)) { throw 'Origin metadata schema or project ID is invalid.' }
+    if ($origin.currentPath -ne $targetProject -or @($origin.transfers).Count -ne 1) { throw 'Origin metadata path or transfer history is invalid.' }
+    $transfer = @($origin.transfers)[0]
+    if ($transfer.source.path -ne $generalSource -or $transfer.mode -ne 'CreateFolder') { throw 'Origin source path or transfer mode is invalid.' }
+    if (-not $transfer.verification.metadataValid -or -not $transfer.verification.cwdUpdated) { throw 'Origin verification flags are invalid.' }
+
+    $firstProjectId = [string]$origin.projectId
+    $secondTarget = Join-Path $targetRoot 'dedicated-session-project-moved'
+    Move-Item -LiteralPath $targetProject -Destination $secondTarget
+    & $mover -ProjectPath $targetProject -NewPath $secondTarget -TransferMode Move -Yes -SkipSpaceCheck -Force
+
+    $secondOriginPath = Join-Path $secondTarget '.claude-project-origin.json'
+    $secondOrigin = Get-Content -LiteralPath $secondOriginPath -Raw | ConvertFrom-Json
+    if ([string]$secondOrigin.projectId -ne $firstProjectId) { throw 'Project ID was not preserved across transfers.' }
+    if ($secondOrigin.currentPath -ne $secondTarget -or @($secondOrigin.transfers).Count -ne 2) { throw 'Transfer history was not appended.' }
+    $secondTransfer = @($secondOrigin.transfers)[1]
+    if ($secondTransfer.source.path -ne $targetProject -or $secondTransfer.mode -ne 'Move') { throw 'Second transfer history entry is invalid.' }
+
     Write-Host 'Folderless migration integration test passed.' -ForegroundColor Green
 }
 finally {

@@ -25,6 +25,7 @@ Do not upload real Claude Code session files. They may contain prompts, local pa
 5. Run `-CheckOnly` before an end-to-end migration test.
 6. Document behavior changes in the pull request.
 7. Test folderless session groups separately; never move a general source directory such as the user profile.
+8. Keep `.claude-project-origin.json` backward compatible and free of secrets or session content.
 
 ## PowerShell validation
 

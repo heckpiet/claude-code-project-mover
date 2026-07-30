@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.4.0"
+SCRIPT_VERSION="1.5.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -164,6 +164,78 @@ smart_folder_suggestion() {
         suggestion="claude-projekt-$(printf '%s' "$timestamp" | tr -cd '0-9' | cut -c1-12)-${session_hint:0:8}"
     fi
     printf '%s' "$suggestion"
+}
+
+write_origin_manifest() {
+    local source_path="$1" destination_path="$2" mode="$3" session_count="$4"
+    local manifest_path="$destination_path/.claude-project-origin.json"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$manifest_path" "$source_path" "$destination_path" "$mode" "$session_count" "$SCRIPT_VERSION" <<'PY'
+import datetime
+import getpass
+import json
+import os
+import platform
+import socket
+import sys
+import uuid
+
+manifest_path, source, destination, mode, session_count, version = sys.argv[1:]
+existing = {}
+if os.path.isfile(manifest_path):
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as stream:
+            existing = json.load(stream)
+    except (OSError, ValueError):
+        existing = {}
+now = datetime.datetime.now().astimezone()
+transfer = {
+    "transferId": str(uuid.uuid4()),
+    "transferredAtUtc": now.astimezone(datetime.timezone.utc).isoformat(),
+    "transferredAtLocal": now.isoformat(),
+    "timeZone": str(now.tzinfo),
+    "mode": mode,
+    "tool": {
+        "name": "Claude Code Project Mover",
+        "version": version,
+        "projectUrl": "https://github.com/heckpiet/claude-code-project-mover",
+    },
+    "source": {
+        "path": source,
+        "computerName": socket.gethostname(),
+        "userName": getpass.getuser(),
+        "operatingSystem": platform.platform(),
+    },
+    "destination": {
+        "path": destination,
+        "computerName": socket.gethostname(),
+        "userName": getpass.getuser(),
+    },
+    "claude": {"sessionFiles": int(session_count)},
+    "verification": {"destinationFolderExists": os.path.isdir(destination), "metadataValid": True, "cwdUpdated": True},
+}
+history = existing.get("transfers", [])
+history.append(transfer)
+manifest = {
+    "schemaVersion": 1,
+    "projectId": existing.get("projectId", str(uuid.uuid4())),
+    "currentPath": destination,
+    "updatedAtUtc": transfer["transferredAtUtc"],
+    "transfers": history,
+}
+temporary = manifest_path + ".tmp"
+with open(temporary, "w", encoding="utf-8") as stream:
+    json.dump(manifest, stream, ensure_ascii=False, indent=2)
+os.replace(temporary, manifest_path)
+PY
+    else
+        local escaped_source escaped_destination
+        escaped_source=$(printf '%s' "$source_path" | sed 's/\\/\\\\/g;s/"/\\"/g')
+        escaped_destination=$(printf '%s' "$destination_path" | sed 's/\\/\\\\/g;s/"/\\"/g')
+        printf '{\n  "schemaVersion": 1,\n  "projectId": "%s",\n  "currentPath": "%s",\n  "updatedAtUtc": "%s",\n  "transfers": [{"transferredAtUtc": "%s", "mode": "%s", "source": {"path": "%s", "computerName": "%s", "userName": "%s"}, "destination": {"path": "%s"}, "tool": {"name": "Claude Code Project Mover", "version": "%s"}, "claude": {"sessionFiles": %s}, "verification": {"destinationFolderExists": true, "metadataValid": true, "cwdUpdated": true}}]\n}\n' \
+            "$(date +%s)-$$" "$escaped_destination" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "$mode" "$escaped_source" "$(hostname)" "${USER:-unknown}" "$escaped_destination" "$SCRIPT_VERSION" "$session_count" > "$manifest_path"
+    fi
 }
 
 # List all projects with numbers
@@ -474,6 +546,10 @@ main() {
         fi
         return 1
     fi
+    local transfer_mode="metadata-only"
+    if [[ "$create_project_folder" == true ]]; then transfer_mode="create-folder"; fi
+    write_origin_manifest "$selected_path" "$new_path" "$transfer_mode" "$selected_count"
+    echo -e "${GREEN}Origin metadata: $new_path/.claude-project-origin.json${NC}"
 
     echo -e "${GREEN}=====================================${NC}"
     echo -e "${GREEN}  Project updated successfully!${NC}"
@@ -483,4 +559,6 @@ main() {
     echo ""
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

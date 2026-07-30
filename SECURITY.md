@@ -13,6 +13,8 @@ Claude Code session metadata can contain:
 
 Do not attach real `.jsonl` session files, complete `.claude` directories or unredacted backups to public issues or pull requests.
 
+The optional `.claude-project-origin.json` manifest records computer name, user name, paths, timestamps, operating system, and migration verification data. It does not record session content, credentials, IP addresses, hardware IDs, or Windows SIDs. Review or disable this manifest before sharing a project outside your organization.
+
 ## Reporting a vulnerability
 
 Please report security-sensitive findings privately through GitHub's private vulnerability reporting feature when it is enabled for this repository. Otherwise, open a minimal issue asking the maintainer for a private contact channel without publishing exploit details or private session data.

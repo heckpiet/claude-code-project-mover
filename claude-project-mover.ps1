@@ -29,6 +29,12 @@ used a general directory.
 .PARAMETER ProjectFolderName
 Name of the dedicated folder created below NewPath.
 
+.PARAMETER TransferMode
+Records how project files reached the destination: Move, Copy, MetadataOnly, or CreateFolder.
+
+.PARAMETER NoOriginMetadata
+Disables the portable .claude-project-origin.json record in the destination.
+
 .PARAMETER Backup
 Creates a ZIP backup before changing files. Interactive mode asks whether a
 backup should be created when this switch is not supplied.
@@ -96,6 +102,13 @@ param(
     [string]$ProjectFolderName,
 
     [Parameter()]
+    [ValidateSet('Move', 'Copy', 'MetadataOnly', 'CreateFolder')]
+    [string]$TransferMode = 'MetadataOnly',
+
+    [Parameter()]
+    [switch]$NoOriginMetadata,
+
+    [Parameter()]
     [switch]$Backup,
 
     [Parameter()]
@@ -128,7 +141,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.4.0'
+$ScriptVersion = '1.5.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -808,6 +821,97 @@ function Get-DestinationAssessment {
     }
 }
 
+function Write-ProjectOriginManifest {
+    param(
+        [Parameter(Mandatory)][string]$DestinationPath,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string]$Mode,
+        [Parameter(Mandatory)][object]$Project,
+        [Parameter(Mandatory)][object]$ProjectHealth,
+        [Parameter(Mandatory)][object]$MetadataHealth,
+        [Parameter(Mandatory)][string]$OldMetadataPath,
+        [Parameter(Mandatory)][string]$NewMetadataPath
+    )
+
+    $manifestPath = Join-Path $DestinationPath '.claude-project-origin.json'
+    $existing = $null
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        try { $existing = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { }
+    }
+    $projectId = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains 'projectId') {
+        [string]$existing.projectId
+    }
+    else {
+        [guid]::NewGuid().ToString()
+    }
+    $history = New-Object System.Collections.Generic.List[object]
+    if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains 'transfers') {
+        foreach ($entry in @($existing.transfers)) { [void]$history.Add($entry) }
+    }
+
+    $now = [datetimeoffset]::Now
+    $computerName = if (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { $env:COMPUTERNAME } else { [System.Net.Dns]::GetHostName() }
+    $osDescription = if ($PSVersionTable.PSObject.Properties.Name -contains 'OS' -and -not [string]::IsNullOrWhiteSpace([string]$PSVersionTable.OS)) {
+        [string]$PSVersionTable.OS
+    }
+    else {
+        [Environment]::OSVersion.VersionString
+    }
+    [void]$history.Add([pscustomobject]@{
+        transferId = [guid]::NewGuid().ToString()
+        transferredAtUtc = $now.UtcDateTime.ToString('o')
+        transferredAtLocal = $now.ToString('o')
+        timeZone = [TimeZoneInfo]::Local.Id
+        mode = $Mode
+        tool = [pscustomobject]@{ name = 'Claude Code Project Mover'; version = $ScriptVersion; projectUrl = $ProjectUrl }
+        source = [pscustomobject]@{
+            path = $SourcePath
+            computerName = $computerName
+            userName = [Environment]::UserName
+            userDomain = [Environment]::UserDomainName
+            operatingSystem = $osDescription
+            metadataPath = $OldMetadataPath
+            fileCount = $ProjectHealth.Summary.FileCount
+            bytes = $ProjectHealth.Summary.Bytes
+            projectMarkers = @($ProjectHealth.Markers)
+        }
+        destination = [pscustomobject]@{
+            path = $DestinationPath
+            computerName = $computerName
+            userName = [Environment]::UserName
+            metadataPath = $NewMetadataPath
+        }
+        claude = [pscustomobject]@{
+            sessionFiles = $Project.SessionCount
+            validRecords = $MetadataHealth.ValidRecords
+            invalidRecords = $MetadataHealth.InvalidRecords
+            lastActivity = if ($null -ne $Project.LastSession) { $Project.LastSession.ToString('o') } else { $null }
+        }
+        verification = [pscustomobject]@{
+            destinationFolderExists = $true
+            metadataValid = ($MetadataHealth.Errors.Count -eq 0)
+            cwdUpdated = ($MetadataHealth.Errors.Count -eq 0)
+        }
+    })
+
+    $manifest = [ordered]@{
+        schemaVersion = 1
+        projectId = $projectId
+        currentPath = $DestinationPath
+        updatedAtUtc = $now.UtcDateTime.ToString('o')
+        transfers = @($history | ForEach-Object { $_ })
+    }
+    $temporaryPath = $manifestPath + '.tmp'
+    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($temporaryPath, ($manifest | ConvertTo-Json -Depth 8), $utf8WithoutBom)
+    $validated = Get-Content -LiteralPath $temporaryPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ($validated.currentPath -ne $DestinationPath -or @($validated.transfers).Count -eq 0) {
+        throw 'Herkunftsmetadaten konnten nicht validiert werden.'
+    }
+    Move-Item -LiteralPath $temporaryPath -Destination $manifestPath -Force
+    return $manifestPath
+}
+
 Show-ScriptHeader
 
 $projectsDirectory = Get-ClaudeProjectsDirectory
@@ -943,6 +1047,7 @@ $NewPath = $destinationAssessment.Path
 $newFolderName = $destinationAssessment.FolderName
 $newMetadataPath = $destinationAssessment.MetadataPath
 $projectHealth = $destinationAssessment.ProjectHealth
+$effectiveTransferMode = if ($createDedicatedFolder) { 'CreateFolder' } else { $TransferMode }
 
 Write-Section 'Vorprüfungen'
 $metadataSummary = Get-DirectorySummary -Path $selectedProject.Directory.FullName
@@ -979,6 +1084,8 @@ Write-Host "Metadata: $($selectedProject.Directory.FullName)"
 Write-Host "New name: $newMetadataPath"
 Write-Host "Backup:   $createBackup"
 Write-Host "Eigenen Projektordner anlegen: $createDedicatedFolder"
+Write-Host "Übertragungsart: $effectiveTransferMode"
+Write-Host "Herkunftsmetadaten: $(-not $NoOriginMetadata.IsPresent)"
 
 if ($CheckOnly.IsPresent) {
     Write-Host ''
@@ -999,6 +1106,9 @@ $stagingPath = Join-Path $projectsDirectory $stagingName
 $rollbackPath = Join-Path $projectsDirectory $rollbackName
 $originalRenamed = $false
 $destinationCreated = $false
+$originManifestPath = Join-Path $NewPath '.claude-project-origin.json'
+$originManifestExisted = Test-Path -LiteralPath $originManifestPath -PathType Leaf
+$originManifestPreviousContent = if ($originManifestExisted) { [System.IO.File]::ReadAllText($originManifestPath) } else { $null }
 
 try {
     if ($createDedicatedFolder) {
@@ -1034,6 +1144,18 @@ try {
     if (-not (Test-Path -LiteralPath $NewPath -PathType Container)) {
         throw "Der neue Projektordner fehlt nach der Migration: '$NewPath'."
     }
+    if (-not $NoOriginMetadata.IsPresent) {
+        $originManifestPath = Write-ProjectOriginManifest `
+            -DestinationPath $NewPath `
+            -SourcePath $oldPath `
+            -Mode $effectiveTransferMode `
+            -Project $selectedProject `
+            -ProjectHealth $projectHealth `
+            -MetadataHealth $finalHealth `
+            -OldMetadataPath $selectedProject.Directory.FullName `
+            -NewMetadataPath $newMetadataPath
+        Write-Host "Herkunftsmetadaten: $originManifestPath" -ForegroundColor Green
+    }
 
     Remove-Item -LiteralPath $rollbackPath -Recurse -Force
     $originalRenamed = $false
@@ -1046,6 +1168,7 @@ try {
     Write-Host "Metadata:      $newMetadataPath"
     Write-Host "Files updated: $updatedFileCount"
     Write-Host "Sessions:      $($finalHealth.ValidRecords) valid records"
+    if (-not $NoOriginMetadata.IsPresent) { Write-Host "Origin record: $originManifestPath" }
 }
 catch {
     Write-Host "Migration failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -1058,6 +1181,12 @@ catch {
     }
     if (Test-Path -LiteralPath $stagingPath) {
         Remove-Item -LiteralPath $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($originManifestExisted -and $null -ne $originManifestPreviousContent) {
+        [System.IO.File]::WriteAllText($originManifestPath, $originManifestPreviousContent, (New-Object System.Text.UTF8Encoding($false)))
+    }
+    elseif (-not $originManifestExisted -and (Test-Path -LiteralPath $originManifestPath -PathType Leaf)) {
+        Remove-Item -LiteralPath $originManifestPath -Force -ErrorAction SilentlyContinue
     }
     if ($destinationCreated -and (Test-Path -LiteralPath $NewPath -PathType Container)) {
         $remainingItems = @(Get-ChildItem -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue)

@@ -26,4 +26,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Parse Bash scripts
-        run: bash -n claude-project-mover.sh
+        run: bash -n claude-project-mover.sh tests/test-origin-manifest.sh
+
+      - name: Test origin manifest history
+        run: bash tests/test-origin-manifest.sh
