@@ -34,11 +34,12 @@ pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-
 4. Auf **Quellen prüfen** klicken.
 5. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
 6. Einen gemeinsamen Zielordner auswählen.
-7. **Projektverzeichnisse physisch verschieben** aktiviert lassen, wenn das Tool auch die echten Dateien bewegen soll.
+7. **Verschieben**, **Kopieren** oder **Nur Metadaten** auswählen.
 8. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
-9. Auf **Verschieben** klicken und den geprüften Plan bestätigen.
+9. **Herkunft im Ziel dokumentieren** aktiviert lassen.
+10. Auf **Ausführen** klicken und den geprüften Plan bestätigen.
 
-Beim Klick auf **Verschieben** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verschoben.
+Beim Klick auf **Ausführen** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verarbeitet.
 
 ## Was in der Quelle geprüft wird
 
@@ -110,6 +111,10 @@ Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen 
 Fehlen im bisherigen Pfad typische Projektmerkmale, fragt die GUI, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
 
 Die Projektliste zeigt dafür zusätzlich **Ordnerstatus** und **Zielordner-Vorschlag**. Der Namensdialog ist mit dem Vorschlag aus KI-Titel oder erstem sinnvollen Sitzungsinhalt vorausgefüllt. Zeitstempel, Sitzungsanzahl, Beschreibung, Pfad und Vorschlag bleiben gleichzeitig sichtbar, damit ähnliche Sitzungsgruppen leichter unterschieden werden können.
+
+## Herkunftsdatei im Ziel
+
+Die standardmäßig aktivierte Option **Herkunft im Ziel dokumentieren** erzeugt `.claude-project-origin.json`. Sie enthält Computer, Benutzer, Quellpfad, Zeitpunkt, Übertragungsart, Tool-Version, technische Projekt- und Sitzungszählwerte sowie das Ergebnis der Nachprüfung. Bei späteren Übertragungen wird die Historie ergänzt. Sitzungsinhalte, Zugangsdaten, IP-Adressen, Hardware-IDs und Windows-SIDs werden nicht gespeichert.
 
 Beispiel:
 

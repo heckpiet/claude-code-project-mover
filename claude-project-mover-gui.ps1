@@ -14,7 +14,7 @@ Alternativ:
 2. Ein oder mehrere Projekte auswählen.
 3. Auf "Quellen prüfen" klicken und das Prüfergebnis kontrollieren.
 4. Einen gemeinsamen Zielordner auswählen.
-5. Backup aktiviert lassen und "Verschieben" anklicken.
+5. Übertragungsart wählen, Backup und Herkunftsdokumentation aktiviert lassen und "Ausführen" anklicken.
 
 .PRÜFUNG
 Das Tool gleicht den Quellpfad mit Claude-Code-Sitzungsdaten ab, sucht typische
@@ -33,6 +33,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ScriptVersion = '1.5.0'
 
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
@@ -434,10 +435,10 @@ $projectVersion = if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
 elseif (Test-Path -LiteralPath $coreScript -PathType Leaf) {
     $coreContent = [System.IO.File]::ReadAllText($coreScript)
     $coreVersionMatch = [regex]::Match($coreContent, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
-    if ($coreVersionMatch.Success) { $coreVersionMatch.Groups[1].Value } else { 'unbekannt' }
+    if ($coreVersionMatch.Success) { $coreVersionMatch.Groups[1].Value } else { $ScriptVersion }
 }
 else {
-    'unbekannt'
+    $ScriptVersion
 }
 if (-not (Test-Path -LiteralPath $projectsPath -PathType Container)) { throw "Claude-Code-Projektverzeichnis nicht gefunden: '$projectsPath'." }
 if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) { throw "Migrationsskript nicht gefunden: '$coreScript'." }
@@ -616,19 +617,33 @@ $browse.Add_Click({
 Set-ButtonStyle -Button $browse
 $form.Controls.Add($browse)
 
-$moveFiles = New-Object System.Windows.Forms.CheckBox
-$moveFiles.Text = 'Projektverzeichnisse physisch verschieben'
-$moveFiles.Checked = -not $NoProjectMove.IsPresent
-$moveFiles.AutoSize = $true
-$moveFiles.Location = New-Object System.Drawing.Point(24, 654)
-$form.Controls.Add($moveFiles)
+$fileOperationLabel = New-Object System.Windows.Forms.Label
+$fileOperationLabel.Text = 'Projektdateien:'
+$fileOperationLabel.AutoSize = $true
+$fileOperationLabel.Location = New-Object System.Drawing.Point(24, 657)
+$form.Controls.Add($fileOperationLabel)
+
+$fileOperation = New-Object System.Windows.Forms.ComboBox
+$fileOperation.DropDownStyle = 'DropDownList'
+[void]$fileOperation.Items.AddRange(@('Verschieben', 'Kopieren', 'Nur Metadaten'))
+$fileOperation.SelectedItem = if ($NoProjectMove.IsPresent) { 'Nur Metadaten' } else { 'Verschieben' }
+$fileOperation.Location = New-Object System.Drawing.Point(120, 651)
+$fileOperation.Size = New-Object System.Drawing.Size(150, 28)
+$form.Controls.Add($fileOperation)
 
 $backup = New-Object System.Windows.Forms.CheckBox
 $backup.Text = 'Claude-Metadaten als ZIP sichern'
 $backup.Checked = $true
 $backup.AutoSize = $true
-$backup.Location = New-Object System.Drawing.Point(310, 654)
+$backup.Location = New-Object System.Drawing.Point(300, 654)
 $form.Controls.Add($backup)
+
+$originMetadata = New-Object System.Windows.Forms.CheckBox
+$originMetadata.Text = 'Herkunft im Ziel dokumentieren'
+$originMetadata.Checked = $true
+$originMetadata.AutoSize = $true
+$originMetadata.Location = New-Object System.Drawing.Point(535, 654)
+$form.Controls.Add($originMetadata)
 
 $status = New-Object System.Windows.Forms.Label
 $status.Text = 'Bereit'
@@ -649,7 +664,7 @@ $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
 $move = New-Object System.Windows.Forms.Button
-$move.Text = 'Verschieben'
+$move.Text = 'Ausführen'
 $move.Anchor = 'Right,Bottom'
 $move.Location = New-Object System.Drawing.Point(1254, 700)
 $move.Size = New-Object System.Drawing.Size(125, 34)
@@ -713,6 +728,7 @@ $move.Add_Click({
             throw 'Bitte einen vorhandenen Zielordner auswählen.'
         }
         $targetRoot = [System.IO.Path]::GetFullPath($targetRoot)
+        $selectedOperation = [string]$fileOperation.SelectedItem
 
         $plan = New-Object System.Collections.Generic.List[object]
         $requiredBytes = [long]0
@@ -741,8 +757,13 @@ $move.Add_Click({
                 if ([string]::IsNullOrWhiteSpace($leaf)) { throw 'Es wurde kein gültiger Projektordnername angegeben.' }
             }
             $destination = Join-Path $targetRoot $leaf
-            if (Test-Path -LiteralPath $destination) { throw "Ziel existiert bereits: $destination" }
-            if (-not $dedicatedFolder) { $requiredBytes += $project.Validation.Manifest.Bytes }
+            if ($dedicatedFolder -or $selectedOperation -in @('Verschieben', 'Kopieren')) {
+                if (Test-Path -LiteralPath $destination) { throw "Ziel existiert bereits: $destination" }
+            }
+            elseif (-not (Test-Path -LiteralPath $destination -PathType Container)) {
+                throw "Zielprojekt existiert nicht: $destination"
+            }
+            if (-not $dedicatedFolder -and $selectedOperation -in @('Verschieben', 'Kopieren')) { $requiredBytes += $project.Validation.Manifest.Bytes }
             [void]$plan.Add([pscustomobject]@{
                 Project = $project
                 Destination = $destination
@@ -752,7 +773,7 @@ $move.Add_Click({
             })
         }
 
-        if ($moveFiles.Checked) {
+        if ($selectedOperation -in @('Verschieben', 'Kopieren')) {
             $available = Get-AvailableBytes -Path $targetRoot
             if ($null -ne $available) {
                 $required = [long][Math]::Max(1GB, $requiredBytes * 1.1)
@@ -775,13 +796,14 @@ $move.Add_Click({
             $destination = $entry.Destination
             $manifest = $entry.Project.Validation.Manifest
             $moved = $false
+            $copied = $false
             try {
-                $status.Text = "Verschiebe $source"
+                $status.Text = "$selectedOperation`: $source"
                 [System.Windows.Forms.Application]::DoEvents()
                 if ($entry.CreateDedicatedFolder) {
                     $status.Text = "Lege eigenen Projektordner für $source an"
                 }
-                elseif ($moveFiles.Checked) {
+                elseif ($selectedOperation -eq 'Verschieben') {
                     Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
                     $moved = $true
                     $verification = Test-DestinationManifest -Manifest $manifest -Destination $destination
@@ -789,17 +811,38 @@ $move.Add_Click({
                         throw "Dateiprüfung am Ziel fehlgeschlagen. Fehlend: $($verification.Missing.Count), abweichend: $($verification.Different.Count)."
                     }
                 }
+                elseif ($selectedOperation -eq 'Kopieren') {
+                    Copy-Item -LiteralPath $source -Destination $destination -Recurse -ErrorAction Stop
+                    $copied = $true
+                    $verification = Test-DestinationManifest -Manifest $manifest -Destination $destination
+                    if (-not $verification.Complete) {
+                        throw "Dateiprüfung der Kopie fehlgeschlagen. Fehlend: $($verification.Missing.Count), abweichend: $($verification.Different.Count)."
+                    }
+                }
                 elseif (-not (Test-Path -LiteralPath $destination -PathType Container)) {
                     throw "Zielprojekt existiert nicht: $destination"
                 }
 
                 $arguments = @{ ProjectPath = $source; NewPath = $destination; Yes = $true }
+                $arguments.TransferMode = if ($entry.CreateDedicatedFolder) {
+                    'CreateFolder'
+                }
+                elseif ($selectedOperation -eq 'Verschieben') {
+                    'Move'
+                }
+                elseif ($selectedOperation -eq 'Kopieren') {
+                    'Copy'
+                }
+                else {
+                    'MetadataOnly'
+                }
                 if ($entry.CreateDedicatedFolder) {
                     $arguments.NewPath = $entry.TargetRoot
                     $arguments.CreateProjectFolder = $true
                     $arguments.ProjectFolderName = $entry.FolderName
                 }
                 if ($backup.Checked) { $arguments.Backup = $true }
+                if (-not $originMetadata.Checked) { $arguments.NoOriginMetadata = $true }
                 & $coreScript @arguments
                 $completed++
             }
@@ -808,12 +851,16 @@ $move.Add_Click({
                     try { Move-Item -LiteralPath $destination -Destination $source -ErrorAction Stop }
                     catch { Write-Warning "Rollback fehlgeschlagen: $($_.Exception.Message)" }
                 }
+                elseif ($copied -and (Test-Path -LiteralPath $destination -PathType Container)) {
+                    try { Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction Stop }
+                    catch { Write-Warning "Kopier-Rollback fehlgeschlagen: $($_.Exception.Message)" }
+                }
                 throw
             }
         }
 
-        $status.Text = "$completed Projekt(e) erfolgreich geprüft und verschoben."
-        [void][System.Windows.Forms.MessageBox]::Show($form, "$completed Projekt(e) wurden vollständig geprüft, verschoben und mit Claude Code verknüpft.", 'Abgeschlossen', 'OK', 'Information')
+        $status.Text = "$completed Projekt(e) erfolgreich geprüft und verarbeitet."
+        [void][System.Windows.Forms.MessageBox]::Show($form, "$completed Projekt(e) wurden vollständig geprüft, verarbeitet und mit Claude Code verknüpft.", 'Abgeschlossen', 'OK', 'Information')
         $form.Close()
     }
     catch {

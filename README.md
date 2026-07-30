@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.4.0**
+Aktuelle Version: **1.5.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -29,7 +29,7 @@ Das Bash-Skript für macOS und Linux bleibt als gepflegte Kompatibilitätsvarian
 2. Claude Code und alle betroffenen Sitzungen schließen.
 3. `Start-ClaudeProjectMover.cmd` doppelt anklicken.
 4. Projekte auswählen und **Quellen prüfen** anklicken.
-5. Zielordner auswählen, Backup aktiviert lassen und Verschiebung bestätigen.
+5. Zielordner und Übertragungsart auswählen, Backup sowie Herkunftsdokumentation aktiviert lassen und den Plan bestätigen.
 
 ```text
 Start-ClaudeProjectMover.cmd
@@ -50,6 +50,7 @@ Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HER
 - Projekte direkt per Checkbox an- und abwählen
 - gemeinsamer Zielordner über den Windows-Ordnerdialog
 - optionales physisches Verschieben der echten Projektordner
+- geprüftes Kopieren als Alternative zum Verschieben sowie reiner Metadatenmodus
 - eigener, frei benennbarer Ziel-Projektordner für Sitzungsgruppen, die bisher nur in einem allgemeinen Ordner lagen
 - reiner Metadatenmodus für bereits manuell verschobene Projekte
 - Statusanzeige mit Projekttyp, Dateianzahl und Größe
@@ -104,6 +105,7 @@ Die PowerShell-Engine:
 - aktualisiert normale, JSON-escapte und mit `/` gespeicherte Pfadvarianten
 - bearbeitet die Metadaten zunächst in einer Arbeitskopie
 - validiert die aktualisierten Daten vor der Aktivierung
+- dokumentiert Herkunft und Übertragungshistorie portabel im Zielprojekt
 - verwendet beim finalen Austausch einen Rollback-Ordner
 - kann ein ZIP-Backup der Claude-Metadaten erstellen
 
@@ -220,6 +222,8 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | `-NewPath` | Neuer absoluter Projektpfad |
 | `-CreateProjectFolder` | Behandelt `-NewPath` als Ziel-Sammelordner und legt einen eigenen Projektordner an |
 | `-ProjectFolderName` | Name des mit `-CreateProjectFolder` anzulegenden Projektordners |
+| `-TransferMode` | Dokumentierte Übertragungsart: `Move`, `Copy`, `MetadataOnly` oder `CreateFolder` |
+| `-NoOriginMetadata` | Deaktiviert die Herkunftsdatei im Ziel bewusst |
 | `-Backup` | Erstellt vor der Änderung ein ZIP-Backup |
 | `-Yes` | Überspringt Rückfragen für automatisierte Aufrufe |
 | `-CheckOnly` | Führt alle Vorprüfungen ohne Änderungen durch |
@@ -230,6 +234,14 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | `-ListProjects` | Zeigt alle erkannten Projekte mit Zeitstempel, Sitzungsanzahl, Beschreibung und Pfad an |
 | `-LastSessions` | Begrenzt die Sitzungsliste; Standard `10`, Maximum `1000` |
 | `-WhatIf` | Zeigt die geplante Änderung ohne Ausführung |
+
+## Herkunft und Übertragungshistorie
+
+Nach einer erfolgreichen Migration liegt im Zielprojekt standardmäßig `.claude-project-origin.json`. Die Datei bleibt beim späteren Kopieren oder Verschieben im Projekt und wird bei weiteren Läufen um einen neuen Eintrag ergänzt.
+
+Gespeichert werden eine dauerhafte Projekt-ID, Quell- und Zielpfad, Computer- und Benutzername, optionale Windows-Domäne, Betriebssystem, UTC- und lokale Zeit, Zeitzone, Übertragungsart, Tool-Version, Projektmerkmale, Dateianzahl und Größe, Sitzungszählwerte, letzte Aktivität sowie das Ergebnis der Zielordner-, Metadaten- und `cwd`-Nachprüfung.
+
+Nicht gespeichert werden Sitzungsinhalte, IP-Adressen, Hardware-IDs, Windows-SID oder Zugangsdaten. Wer Computer- oder Benutzernamen nicht im Ziel ablegen möchte, kann `-NoOriginMetadata` verwenden oder die entsprechende GUI-Option deaktivieren.
 
 ## Speicherplatzprüfung
 
@@ -352,7 +364,8 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 ├── claude-project-mover.sh
 ├── tests/
 │   ├── Test-FolderSuggestions.ps1
-│   └── Test-FolderlessMigration.ps1
+│   ├── Test-FolderlessMigration.ps1
+│   └── test-origin-manifest.sh
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── SECURITY.md
