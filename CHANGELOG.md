@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## [1.1.1] - 2026-07-30
+
+### Added
+
+- Read-only `-ListProjects` overview for the non-GUI script
+- Rich standalone CLI inventory fallback when the shared module is not present
+
+### Changed
+
+- German interactive CLI project selection with timestamp, session count, description, and full path
+
 ## [1.1.0] - 2026-07-30
 
 ### Added

@@ -65,13 +65,14 @@ if (-not [regex]::IsMatch($readmeContent, $readmeVersionPattern)) {
 
 if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersion to $newVersion")) {
     $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+    $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
     [System.IO.File]::WriteAllText($versionPath, $newVersion + [Environment]::NewLine, $utf8WithoutBom)
     $updatedScript = [regex]::Replace(
         $scriptContent,
         $versionPattern,
         "`$ScriptVersion = '$newVersion'"
     )
-    [System.IO.File]::WriteAllText($mainScriptPath, $updatedScript, $utf8WithoutBom)
+    [System.IO.File]::WriteAllText($mainScriptPath, $updatedScript, $utf8WithBom)
     $updatedReadme = [regex]::Replace(
         $readmeContent,
         $readmeVersionPattern,

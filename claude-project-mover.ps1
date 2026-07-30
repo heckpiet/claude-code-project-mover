@@ -47,6 +47,10 @@ corruption and insufficient disk space remain blocking errors.
 Lists the most recent Claude Code sessions from the Claude configuration
 directory and exits without changing any files.
 
+.PARAMETER ListProjects
+Lists all detected Claude Code projects with latest-session timestamp, session
+count, description, and full path, then exits without changing any files.
+
 .PARAMETER LastSessions
 Maximum number of sessions shown by ListSessions. The default is 10.
 
@@ -55,6 +59,9 @@ Maximum number of sessions shown by ListSessions. The default is 10.
 
 .EXAMPLE
 .\claude-project-mover.ps1 -ListSessions -LastSessions 20
+
+.EXAMPLE
+.\claude-project-mover.ps1 -ListProjects
 
 .EXAMPLE
 .\claude-project-mover.ps1 -ProjectPath 'C:\Users\Peter\Code\OldProject' -NewPath 'D:\Code\OldProject' -Backup -Yes
@@ -94,6 +101,9 @@ param(
     [switch]$ListSessions,
 
     [Parameter()]
+    [switch]$ListProjects,
+
+    [Parameter()]
     [ValidateRange(1, 1000)]
     [int]$LastSessions = 10
 )
@@ -101,7 +111,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.1.1'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -292,14 +302,23 @@ function Get-ClaudeProjects {
             continue
         }
 
+        $sessionFiles = @(Get-ChildItem -LiteralPath $directory.FullName -File -Filter '*.jsonl' -Recurse -ErrorAction SilentlyContinue)
+        $sessionInfo = @($sessionFiles | ForEach-Object { Get-ClaudeSessionInfo -File $_ })
+        $latestSession = $sessionInfo | Sort-Object LastActivity -Descending | Select-Object -First 1
+        $lastActivity = if ($null -ne $latestSession) { $latestSession.LastActivity } else { $directory.LastWriteTime }
+        $latestDescription = if ($null -ne $latestSession) { $latestSession.Description } else { '(no description available)' }
+
         [pscustomobject]@{
             FolderName = $directory.Name
             Directory  = $directory
             Path       = Get-ReadableProjectPath -Directory $directory
+            SessionCount = $sessionInfo.Count
+            LastSession = $lastActivity
+            Description = $latestDescription
         }
     }
 
-    return @($projects | Sort-Object Path)
+    return @($projects | Sort-Object LastSession -Descending)
 }
 
 function ConvertTo-SessionMessageText {
@@ -455,11 +474,11 @@ function Show-ClaudeSessions {
         Out-Host
 }
 
-function Select-ClaudeProject {
+function Show-ClaudeProjectOverview {
     param([Parameter(Mandatory)][object[]]$Projects)
 
-    Write-Section 'Claude Code project overview'
-    Write-Host 'Select one project by number. The most recently used projects are shown first.' -ForegroundColor DarkGray
+    Write-Section 'Claude-Code-Projektübersicht'
+    Write-Host 'Die zuletzt verwendeten Projekte werden zuerst angezeigt.' -ForegroundColor DarkGray
     Write-Host ''
     for ($index = 0; $index -lt $Projects.Count; $index++) {
         $project = $Projects[$index]
@@ -477,18 +496,26 @@ function Select-ClaudeProject {
             '(no description available)'
         }
 
-        Write-Host ('{0,3}) {1} | {2,3} session(s) | {3}' -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
+        Write-Host ('{0,3}) {1} | {2,3} Sitzung(en) | {3}' -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
         Write-Host ('     {0}' -f $project.Path) -ForegroundColor DarkGray
     }
+}
+
+function Select-ClaudeProject {
+    param([Parameter(Mandatory)][object[]]$Projects)
+
+    Show-ClaudeProjectOverview -Projects $Projects
+    Write-Host ''
+    Write-Host 'Wähle ein Projekt anhand der Nummer aus.' -ForegroundColor Cyan
 
     while ($true) {
-        $selection = Read-Host "Enter project number (1-$($Projects.Count))"
+        $selection = Read-Host "Projektnummer (1-$($Projects.Count))"
         $parsedSelection = 0
         if ([int]::TryParse($selection, [ref]$parsedSelection) -and
             $parsedSelection -ge 1 -and $parsedSelection -le $Projects.Count) {
             return $Projects[$parsedSelection - 1]
         }
-        Write-Host 'Invalid selection.' -ForegroundColor Red
+        Write-Host 'Ungültige Auswahl.' -ForegroundColor Red
     }
 }
 
@@ -689,6 +716,11 @@ if ($projects.Count -eq 0) { throw "No Claude Code projects were found in '$proj
 if ($ListSessions.IsPresent) {
     $sessions = Get-ClaudeSessions -Projects $projects -Limit $LastSessions
     Show-ClaudeSessions -Sessions $sessions
+    return
+}
+
+if ($ListProjects.IsPresent) {
+    Show-ClaudeProjectOverview -Projects $projects
     return
 }
 
