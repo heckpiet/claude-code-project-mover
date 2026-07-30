@@ -7,7 +7,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.1.0**
+Aktuelle Version: **1.1.1**
 Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
 
 ## Schnellstart unter Windows
@@ -162,6 +162,14 @@ Dieser reine Lesemodus durchsucht das konfigurierte Claude-Verzeichnis (`CLAUDE_
 
 Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselben Inventardaten wie die GUI: letzte Sitzung, Sitzungsanzahl, Kurzbeschreibung und vollständiger Pfad. Damit lässt sich ein unbekannter Ordner vor der Auswahl einordnen.
 
+### Projektübersicht ohne Migration
+
+```powershell
+.\claude-project-mover.ps1 -ListProjects
+```
+
+Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sortiert an und beendet das Skript anschließend. Die Übersicht funktioniert auch dann, wenn nur die einzelne `claude-project-mover.ps1` kopiert wurde; mit dem mitgelieferten Inventarmodul verwenden GUI und CLI vollständig dieselbe Erkennungslogik.
+
 ### Reiner Prüfmodus
 
 ```powershell
@@ -194,6 +202,7 @@ Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselb
 | `-SkipSpaceCheck` | Überspringt die Speicherplatzprüfung, etwa bei problematischen UNC-Pfaden |
 | `-Force` | Erlaubt das Fortsetzen bei nicht kritischen Projektwarnungen |
 | `-ListSessions` | Zeigt die zuletzt verwendeten Claude-Code-Sitzungen an und beendet das Skript ohne Änderungen |
+| `-ListProjects` | Zeigt alle erkannten Projekte mit Zeitstempel, Sitzungsanzahl, Beschreibung und Pfad an |
 | `-LastSessions` | Begrenzt die Sitzungsliste; Standard `10`, Maximum `1000` |
 | `-WhatIf` | Zeigt die geplante Änderung ohne Ausführung |
 
