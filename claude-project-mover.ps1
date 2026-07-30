@@ -43,8 +43,18 @@ retrieved, for example on some network shares.
 Continues when only non-critical project-content warnings are found. Metadata
 corruption and insufficient disk space remain blocking errors.
 
+.PARAMETER ListSessions
+Lists the most recent Claude Code sessions from the Claude configuration
+directory and exits without changing any files.
+
+.PARAMETER LastSessions
+Maximum number of sessions shown by ListSessions. The default is 10.
+
 .EXAMPLE
 .\claude-project-mover.ps1
+
+.EXAMPLE
+.\claude-project-mover.ps1 -ListSessions -LastSessions 20
 
 .EXAMPLE
 .\claude-project-mover.ps1 -ProjectPath 'C:\Users\Peter\Code\OldProject' -NewPath 'D:\Code\OldProject' -Backup -Yes
@@ -78,7 +88,14 @@ param(
     [switch]$SkipSpaceCheck,
 
     [Parameter()]
-    [switch]$Force
+    [switch]$Force,
+
+    [Parameter()]
+    [switch]$ListSessions,
+
+    [Parameter()]
+    [ValidateRange(1, 1000)]
+    [int]$LastSessions = 10
 )
 
 Set-StrictMode -Version Latest
@@ -262,6 +279,159 @@ function Get-ClaudeProjects {
     }
 
     return @($projects | Sort-Object Path)
+}
+
+function ConvertTo-SessionMessageText {
+    param([Parameter()][AllowNull()]$Message)
+
+    if ($null -eq $Message) { return $null }
+    if ($Message -is [string]) { return $Message }
+
+    if ($Message.PSObject.Properties.Name -contains 'content') {
+        $content = $Message.content
+        if ($content -is [string]) { return $content }
+
+        $textParts = foreach ($part in @($content)) {
+            if ($null -eq $part) { continue }
+            if ($part -is [string]) { $part; continue }
+            if ($part.PSObject.Properties.Name -contains 'type' -and
+                [string]$part.type -ne 'text') { continue }
+            if ($part.PSObject.Properties.Name -contains 'text') {
+                [string]$part.text
+            }
+        }
+        return ($textParts -join ' ')
+    }
+
+    return $null
+}
+
+function Format-SessionDescription {
+    param(
+        [Parameter()][AllowNull()][string]$Text,
+        [Parameter()][int]$MaximumLength = 100
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) { return '(no description available)' }
+
+    $cleanText = [regex]::Replace($Text, '<system-reminder>.*?</system-reminder>', ' ', 'Singleline,IgnoreCase')
+    $cleanText = [regex]::Replace($cleanText, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($cleanText)) { return '(no description available)' }
+    if ($cleanText.Length -le $MaximumLength) { return $cleanText }
+    return $cleanText.Substring(0, $MaximumLength - 1).TrimEnd() + [char]0x2026
+}
+
+function Get-ClaudeSessionInfo {
+    param(
+        [Parameter(Mandatory)][System.IO.FileInfo]$File,
+        [Parameter()][string]$ProjectPath
+    )
+
+    $latestTimestamp = $null
+    $title = $null
+    $firstUserMessage = $null
+    $cwd = $null
+
+    foreach ($line in [System.IO.File]::ReadLines($File.FullName)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+        try { $entry = $line | ConvertFrom-Json -ErrorAction Stop }
+        catch { continue }
+
+        if ($entry.PSObject.Properties.Name -contains 'timestamp' -and
+            -not [string]::IsNullOrWhiteSpace([string]$entry.timestamp)) {
+            $parsedTimestamp = [datetimeoffset]::MinValue
+            if ([datetimeoffset]::TryParse(
+                    [string]$entry.timestamp,
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeUniversal,
+                    [ref]$parsedTimestamp) -and
+                ($null -eq $latestTimestamp -or $parsedTimestamp -gt $latestTimestamp)) {
+                $latestTimestamp = $parsedTimestamp
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($cwd) -and
+            $entry.PSObject.Properties.Name -contains 'cwd' -and
+            -not [string]::IsNullOrWhiteSpace([string]$entry.cwd)) {
+            $cwd = [string]$entry.cwd
+        }
+
+        if ([string]::IsNullOrWhiteSpace($title) -and
+            $entry.PSObject.Properties.Name -contains 'aiTitle' -and
+            -not [string]::IsNullOrWhiteSpace([string]$entry.aiTitle)) {
+            $title = [string]$entry.aiTitle
+        }
+
+        $isMeta = $entry.PSObject.Properties.Name -contains 'isMeta' -and [bool]$entry.isMeta
+        if ([string]::IsNullOrWhiteSpace($firstUserMessage) -and -not $isMeta -and
+            $entry.PSObject.Properties.Name -contains 'type' -and
+            [string]$entry.type -eq 'user' -and
+            $entry.PSObject.Properties.Name -contains 'message') {
+            $candidateMessage = ConvertTo-SessionMessageText -Message $entry.message
+            if (-not [string]::IsNullOrWhiteSpace($candidateMessage)) {
+                $firstUserMessage = $candidateMessage
+            }
+        }
+    }
+
+    $activity = if ($null -ne $latestTimestamp) {
+        $latestTimestamp.ToLocalTime().DateTime
+    }
+    else {
+        $File.LastWriteTime
+    }
+    $resolvedProjectPath = if (-not [string]::IsNullOrWhiteSpace($ProjectPath)) {
+        $ProjectPath
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($cwd)) {
+        $cwd
+    }
+    else {
+        ConvertFrom-ClaudeProjectFolderName -FolderName $File.Directory.Name
+    }
+    $description = if (-not [string]::IsNullOrWhiteSpace($title)) { $title } else { $firstUserMessage }
+
+    return [pscustomobject]@{
+        LastActivity = $activity
+        Project      = $resolvedProjectPath
+        Description  = Format-SessionDescription -Text $description
+        SessionId    = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+        File         = $File.FullName
+    }
+}
+
+function Get-ClaudeSessions {
+    param(
+        [Parameter(Mandatory)][object[]]$Projects,
+        [Parameter(Mandatory)][int]$Limit
+    )
+
+    $sessions = foreach ($project in $Projects) {
+        foreach ($file in Get-ChildItem -LiteralPath $project.Directory.FullName -File -Filter '*.jsonl' -Recurse -ErrorAction SilentlyContinue) {
+            Get-ClaudeSessionInfo -File $file -ProjectPath $project.Path
+        }
+    }
+
+    return @($sessions | Sort-Object LastActivity -Descending | Select-Object -First $Limit)
+}
+
+function Show-ClaudeSessions {
+    param([Parameter(Mandatory)][object[]]$Sessions)
+
+    Write-Section 'Most recent Claude Code sessions'
+    if ($Sessions.Count -eq 0) {
+        Write-Host 'No Claude Code sessions were found.' -ForegroundColor Yellow
+        return
+    }
+
+    $Sessions |
+        Select-Object @{ Name = 'Last session'; Expression = { $_.LastActivity.ToString('dd.MM.yyyy HH:mm:ss') } },
+                      Project,
+                      Description,
+                      SessionId |
+        Format-Table -AutoSize -Wrap |
+        Out-Host
 }
 
 function Select-ClaudeProject {
@@ -478,6 +648,12 @@ if (-not (Test-Path -LiteralPath $projectsDirectory -PathType Container)) {
 
 $projects = Get-ClaudeProjects -ProjectsDirectory $projectsDirectory
 if ($projects.Count -eq 0) { throw "No Claude Code projects were found in '$projectsDirectory'." }
+
+if ($ListSessions.IsPresent) {
+    $sessions = Get-ClaudeSessions -Projects $projects -Limit $LastSessions
+    Show-ClaudeSessions -Sessions $sessions
+    return
+}
 
 $selectedProject = if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
     Select-ClaudeProject -Projects $projects
