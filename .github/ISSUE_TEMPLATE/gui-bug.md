@@ -1,6 +1,6 @@
 ---
 name: Native GUI bug
-about: Report a problem with the Windows batch interface
+about: Report a problem with the native Windows interface
 title: '[GUI] '
 labels: bug
 assignees: ''

@@ -1,14 +1,28 @@
 # Claude Code Project Mover
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE?logo=powershell&logoColor=white)](https://github.com/PowerShell/PowerShell)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#plattformen)
+[![Focus](https://img.shields.io/badge/focus-Windows-0078D4?logo=windows11&logoColor=white)](#projektfokus-windows)
+[![Compatibility](https://img.shields.io/badge/compatibility-macOS%20%7C%20Linux-lightgrey)](#plattformen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PowerShell validation](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml/badge.svg)](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml)
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.2.0**
-Dieser Fork behält das ursprüngliche Bash-Skript für macOS und Linux bei und ergänzt eine erweiterte PowerShell-Version mit nativer Windows-Oberfläche, Mehrfachauswahl, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback.
+Aktuelle Version: **1.2.1**
+
+## Projektfokus: Windows
+
+Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
+
+Zum Windows-Schwerpunkt gehören insbesondere:
+
+- komfortabler Start per CMD-Datei und native grafische Oberfläche
+- vollständige PowerShell-Kommandozeile für manuelle und automatisierte Abläufe
+- deutsche Windows-Dokumentation, verständliche Sicherheitsabfragen und korrekte UTF-8-Darstellung
+- Mehrfachauswahl, Sitzungsübersicht, Quellenprüfung, Speicherplatzkontrolle, Backup und Rollback
+- automatisierte Tests unter Windows PowerShell 5.1 und PowerShell 7
+
+Das Bash-Skript für macOS und Linux bleibt als gepflegte Kompatibilitätsvariante enthalten. Neue Funktionen werden projektweit geprüft und dokumentiert; die umfassendste Oberfläche und der primäre Support gelten jedoch der Windows-Umsetzung.
 
 ## Schnellstart unter Windows
 
@@ -234,11 +248,11 @@ Schlägt die Aktivierung fehl, versucht das Skript den vorherigen Metadatenzusta
 
 | Plattform | Datei | Umfang |
 | --- | --- | --- |
-| Windows | `Start-ClaudeProjectMover.cmd` | GUI, CLI und Projektübersicht starten |
-| Windows | `claude-project-mover-gui.ps1` | native Oberfläche und Mehrfachauswahl |
-| Windows, PowerShell 7 | `claude-project-mover.ps1` | Kommandozeile und Migrationsengine |
-| macOS | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
-| Linux | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
+| **Windows 10/11 (Primärplattform)** | `Start-ClaudeProjectMover.cmd` | empfohlener Start für GUI, CLI und Projektübersicht |
+| **Windows 10/11 (Primärplattform)** | `claude-project-mover-gui.ps1` | native Oberfläche und Mehrfachauswahl |
+| **Windows 10/11 (Primärplattform)** | `claude-project-mover.ps1` | vollständige Kommandozeile und Migrationsengine |
+| macOS (Kompatibilität) | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
+| Linux (Kompatibilität) | `claude-project-mover.sh` | Bash-Ablauf mit Sitzungsübersicht |
 
 ## Versionierung und Releases
 

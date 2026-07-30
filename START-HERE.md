@@ -2,6 +2,8 @@
 
 Diese Datei beschreibt den empfohlenen Weg, ein oder mehrere Claude-Code-Projekte einschließlich ihrer bisherigen Sitzungen an einen neuen Speicherort zu verschieben.
 
+Dieses Repository wird als Windows-first-Projekt entwickelt und getestet. Der empfohlene Funktionsumfang umfasst Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche. Hinweise zu macOS und Linux stehen ergänzend in der README.
+
 ## Vorbereitung
 
 1. Über **Code → Download ZIP** den vollständigen Quellordner herunterladen und entpacken oder das Repository klonen. Ein separates Release-Paket ist noch nicht veröffentlicht.

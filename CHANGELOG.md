@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [1.2.1] - 2026-07-30
+
+### Changed
+
+- Clarified Windows 10/11, PowerShell, Windows Forms, and CMD as the primary project focus
+- Marked Bash on macOS and Linux as a maintained compatibility variant
+- Aligned contribution guidance, issue templates, pull request checks, and Windows documentation with the Windows-first scope
+- Made PowerShell CI restore the default PSGallery registration when runner images omit it
+
 ## [1.2.0] - 2026-07-30
 
 ### Added

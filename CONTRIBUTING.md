@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions that improve platform compatibility, validation, data safety or documentation are welcome.
+This repository is Windows-first. Contributions that improve its Windows GUI, PowerShell engine, validation, data safety or documentation are especially welcome. The Bash entry point remains a maintained compatibility option for macOS and Linux.
 
 ## Before opening an issue
 
@@ -19,8 +19,8 @@ Do not upload real Claude Code session files. They may contain prompts, local pa
 ## Development workflow
 
 1. Fork the repository and create a focused branch.
-2. Keep the original Bash behavior compatible unless a change is explicitly platform-specific.
-3. Run the PowerShell parser and PSScriptAnalyzer.
+2. Review every entry point and document deliberate platform differences. Keep Bash compatible when the change is not Windows-specific.
+3. Run the PowerShell parser, PSScriptAnalyzer and Bash syntax validation.
 4. Test with a disposable Claude Code project and a copied `.claude/projects` directory.
 5. Run `-CheckOnly` before an end-to-end migration test.
 6. Document behavior changes in the pull request.
@@ -62,7 +62,7 @@ A pull request should explain:
 
 - what changed
 - why the change is needed
-- effects on Bash and PowerShell users
+- effects on the primary Windows implementation and the Bash compatibility variant
 - safety or compatibility implications
 - validation performed
 - limitations that remain
@@ -77,8 +77,8 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - Increment `MINOR` for backward-compatible features.
 - Increment `PATCH` for backward-compatible bug fixes.
 - Increment `MAJOR` for breaking behavior or parameter changes.
-- Keep the root `VERSION` file and `$ScriptVersion` in `claude-project-mover.ps1` identical.
-- Use `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` to update both values safely.
+- Keep `VERSION`, README and the embedded versions in PowerShell, Bash and CMD identical.
+- Use `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` to update all values safely.
 - For a release, move the relevant changelog entries under `## [X.Y.Z] - YYYY-MM-DD`, then create the tag `vX.Y.Z`.
 
 GitHub Actions validates the version format and consistency automatically.
