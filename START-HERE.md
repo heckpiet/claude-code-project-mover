@@ -49,6 +49,8 @@ Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausge
 
 Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner, fragt die GUI nach einem neuen Ordnernamen. Sie legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quellordner wie das Benutzerprofil wird niemals vollständig verschoben.
 
+Zur leichteren Auswahl zeigt die Übersicht Zeitstempel, Sitzungsanzahl, Inhalt, bisherigen Pfad, Ordnerstatus und einen automatisch erzeugten Zielordner-Vorschlag. Der Vorschlag kann vor dem Anlegen geändert werden.
+
 ## Was vor dem Verschieben geprüft wird
 
 Das Tool kontrolliert für jedes ausgewählte Projekt:

@@ -100,6 +100,10 @@ jobs:
         shell: powershell
         run: .\tests\Test-FolderlessMigration.ps1
 
+      - name: Test smart folder suggestions
+        shell: powershell
+        run: .\tests\Test-FolderSuggestions.ps1
+
   powershell-7:
     name: PowerShell 7
     runs-on: windows-latest
@@ -173,3 +177,7 @@ jobs:
       - name: Test folderless session migration
         shell: pwsh
         run: .\tests\Test-FolderlessMigration.ps1
+
+      - name: Test smart folder suggestions
+        shell: pwsh
+        run: .\tests\Test-FolderSuggestions.ps1

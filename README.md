@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.3.0**
+Aktuelle Version: **1.4.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -46,6 +46,7 @@ Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HER
 - native Windows-Forms-Oberfläche
 - Auswahl eines oder mehrerer Claude-Code-Projekte
 - nach letzter Aktivität sortierte Übersicht mit Zeitstempel, Sitzungsanzahl und Kurzbeschreibung
+- sichtbarer Ordnerstatus und intelligenter Zielordner-Vorschlag aus Sitzungstitel oder Inhalt
 - Projekte direkt per Checkbox an- und abwählen
 - gemeinsamer Zielordner über den Windows-Ordnerdialog
 - optionales physisches Verschieben der echten Projektordner
@@ -179,6 +180,10 @@ Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselb
 Beim Zielpfad muss der **vollständige neue Projektordner** angegeben werden, nicht nur ein übergeordneter Sammelordner. Kann das interaktive CLI dort keine typische Projektdatei erkennen, erklärt es die Warnung und lässt unmittelbar einen anderen Pfad eingeben oder die Auswahl bewusst bestätigen. Automatisierte Aufrufe bleiben streng und benötigen in diesem Fall weiterhin `-Force`.
 
 Erkennt das interaktive CLI, dass eine Sitzungsgruppe bisher keinen eigenen Projektordner besitzt, fragt es standardmäßig nach der Anlage eines neuen Ordners. In diesem Modus wird ein vorhandener Ziel-Sammelordner plus ein neuer Projektname eingegeben. Der allgemeine Quellordner wird nicht verschoben. Das Skript legt den neuen Ordner an, aktualisiert sämtliche gespeicherten Pfadvarianten in den Claude-Metadaten und prüft anschließend Ordner, Metadatenverzeichnis, JSON/JSONL-Daten und `cwd`-Verweise.
+
+### Intelligente Ordnernamenvorschläge
+
+Projektübersicht und Auswahldialog zeigen letzte Sitzung, Sitzungsanzahl, KI-Titel oder Sitzungsinhalt, bisherigen Pfad, Ordnerstatus und Zielordner-Vorschlag. Der Vorschlag verwendet bis zu acht aussagekräftige Wörter, entfernt einleitende Füllwörter sowie ungültige Dateinamenzeichen und begrenzt die Länge. Fehlt verwertbarer Inhalt, werden Zeitstempel und ein gekürzter Sitzungsbezeichner verwendet. Vor der Anlage kann der Name immer bearbeitet werden.
 
 ### Projektübersicht ohne Migration
 
@@ -346,6 +351,7 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 ├── claude-project-mover.ps1
 ├── claude-project-mover.sh
 ├── tests/
+│   ├── Test-FolderSuggestions.ps1
 │   └── Test-FolderlessMigration.ps1
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

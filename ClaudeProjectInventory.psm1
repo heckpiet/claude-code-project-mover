@@ -45,6 +45,55 @@ function Format-InventoryDescription {
     return $clean.Substring(0, $MaximumLength - 3).TrimEnd() + '...'
 }
 
+function Test-InventoryProjectMarker {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return $false }
+    foreach ($marker in @('.git', 'CLAUDE.md', '.claude', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod')) {
+        if (Test-Path -LiteralPath (Join-Path $Path $marker)) { return $true }
+    }
+    if (Get-ChildItem -LiteralPath $Path -File -Include '*.sln', '*.csproj' -ErrorAction SilentlyContinue | Select-Object -First 1) { return $true }
+    return $false
+}
+
+function Test-InventoryGeneralPath {
+    param([Parameter(Mandatory)][string]$Path)
+    try { $normalized = [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/') } catch { return $false }
+    $candidates = @(
+        $HOME,
+        [Environment]::GetFolderPath('Desktop'),
+        [Environment]::GetFolderPath('MyDocuments'),
+        (Join-Path $HOME 'Downloads'),
+        $env:OneDrive,
+        $env:OneDriveConsumer,
+        $env:OneDriveCommercial
+    )
+    return @($candidates | Where-Object {
+        if ([string]::IsNullOrWhiteSpace($_)) { return $false }
+        try { return [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/') -ieq $normalized } catch { return $false }
+    }).Count -gt 0
+}
+
+function New-InventoryFolderSuggestion {
+    param(
+        [Parameter()][AllowNull()][string]$Description,
+        [Parameter(Mandatory)][datetime]$LastActivity,
+        [Parameter()][AllowNull()][string]$SessionId
+    )
+
+    $candidate = Format-InventoryDescription -Text $Description -MaximumLength 100
+    if ($candidate -in @('(no description available)', '(keine Beschreibung verfügbar)')) { $candidate = '' }
+    $candidate = [regex]::Replace($candidate, '^(bitte|kannst du|ich möchte|ich will|erstelle|baue|prüfe|schau(?:e)?(?: mal)?)\s+', '', 'IgnoreCase')
+    $words = @([regex]::Matches($candidate, '[\p{L}\p{Nd}]+') | ForEach-Object { $_.Value } | Select-Object -First 8)
+    $suggestion = ($words -join '-').ToLowerInvariant()
+    if ($suggestion.Length -gt 56) { $suggestion = $suggestion.Substring(0, 56).TrimEnd('-') }
+
+    if ([string]::IsNullOrWhiteSpace($suggestion)) {
+        $shortSession = if ([string]::IsNullOrWhiteSpace($SessionId)) { 'session' } else { $SessionId.Substring(0, [Math]::Min(8, $SessionId.Length)) }
+        $suggestion = 'claude-projekt-{0}-{1}' -f $LastActivity.ToString('yyyyMMdd-HHmm'), $shortSession
+    }
+    return $suggestion
+}
+
 function Read-ClaudeProjectSessions {
     param([Parameter(Mandatory)][System.IO.FileInfo[]]$Files)
 
@@ -138,6 +187,12 @@ function Get-ClaudeProjectInventory {
             ConvertFrom-ClaudeProjectFolderName -FolderName $directory.Name
         }
         $latest = $sessionData.Sessions | Select-Object -First 1
+        $hasMarker = Test-InventoryProjectMarker -Path $path
+        $needsDedicatedFolder = Test-InventoryGeneralPath -Path $path
+        $suggestedFolderName = New-InventoryFolderSuggestion `
+            -Description $latest.Description `
+            -LastActivity $latest.LastActivity `
+            -SessionId $latest.SessionId
 
         [pscustomobject]@{
             FolderName = $directory.Name
@@ -151,6 +206,11 @@ function Get-ClaudeProjectInventory {
             SessionCount = $sessionData.Sessions.Count
             LastSession = $latest.LastActivity
             Description = $latest.Description
+            LatestSessionId = $latest.SessionId
+            HasProjectMarker = $hasMarker
+            NeedsDedicatedFolder = $needsDedicatedFolder
+            FolderStatus = if ($needsDedicatedFolder) { 'ORDNER FEHLT' } else { 'Eigener Ordner' }
+            SuggestedFolderName = $suggestedFolderName
             Validation = $null
         }
     }
@@ -158,4 +218,4 @@ function Get-ClaudeProjectInventory {
     return @($projects | Sort-Object LastSession -Descending)
 }
 
-Export-ModuleMember -Function Get-ClaudeProjectInventory
+Export-ModuleMember -Function Get-ClaudeProjectInventory, New-InventoryFolderSuggestion

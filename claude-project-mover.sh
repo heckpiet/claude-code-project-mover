@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.3.0"
+SCRIPT_VERSION="1.4.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -150,11 +150,27 @@ is_general_source_path() {
        ( -n "${OneDrive:-}" && "$path" == "${OneDrive%/}" ) ]]
 }
 
+smart_folder_suggestion() {
+    local description="$1"
+    local timestamp="$2"
+    local session_hint="$3"
+    local suggestion
+    suggestion=$(printf '%s' "$description" \
+        | sed -E 's/^(Bitte|Kannst du|Ich möchte|Ich will|Erstelle|Baue|Prüfe|Schau(e)?( mal)?)[[:space:]]+//I' \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^[:alnum:]ÄÖÜäöüß]+/-/g;s/^-+//;s/-+$//' \
+        | cut -c1-56)
+    if [[ -z "$suggestion" || "$description" == "Keine Beschreibung verfügbar" ]]; then
+        suggestion="claude-projekt-$(printf '%s' "$timestamp" | tr -cd '0-9' | cut -c1-12)-${session_hint:0:8}"
+    fi
+    printf '%s' "$suggestion"
+}
+
 # List all projects with numbers
 list_projects() {
     local i=1
-    printf "${BLUE}%-4s %-17s %-9s %-42s %s${NC}\n" "Nr." "Letzte Sitzung" "Sessions" "Beschreibung" "Projektpfad"
-    printf '%s\n' "--------------------------------------------------------------------------------------------------------------"
+    printf "${BLUE}%-4s %-17s %-9s %-14s %-30s %-38s %s${NC}\n" "Nr." "Letzte Sitzung" "Sessions" "Ordnerstatus" "Vorschlag" "Beschreibung" "Projektpfad"
+    printf '%s\n' "------------------------------------------------------------------------------------------------------------------------------------------------"
     for dir in "$PROJECTS_DIR"/-*/; do
         if [[ -d "$dir" ]]; then
             local folder_name=$(basename "$dir")
@@ -162,8 +178,13 @@ list_projects() {
             local details timestamp session_count description
             details=$(get_session_details "$dir")
             IFS=$'\t' read -r timestamp session_count description <<< "$details"
-            printf "${BLUE}%3d)${NC} %-17s %-9s %-42.42s %s\n" \
-                "$i" "$timestamp" "$session_count" "$description" "$readable_path"
+            local folder_status="Eigener Ordner" suggestion="-"
+            if is_general_source_path "$readable_path"; then
+                folder_status="ORDNER FEHLT"
+                suggestion=$(smart_folder_suggestion "$description" "$timestamp" "$folder_name")
+            fi
+            printf "${BLUE}%3d)${NC} %-17s %-9s %-14s %-30.30s %-38.38s %s\n" \
+                "$i" "$timestamp" "$session_count" "$folder_status" "$suggestion" "$description" "$readable_path"
             i=$((i + 1))
         fi
     done
@@ -346,6 +367,10 @@ main() {
 
     local selected_path=$(get_readable_path "$selected_folder")
     local create_project_folder=false
+    local selected_details selected_timestamp selected_count selected_description suggested_folder_name
+    selected_details=$(get_session_details "$PROJECTS_DIR/$selected_folder")
+    IFS=$'\t' read -r selected_timestamp selected_count selected_description <<< "$selected_details"
+    suggested_folder_name=$(smart_folder_suggestion "$selected_description" "$selected_timestamp" "$selected_folder")
 
     echo ""
     echo ""
@@ -353,7 +378,7 @@ main() {
     echo -e "${BLUE}───────────────────────────────${NC}"
     echo -e "  Current: ${YELLOW}$selected_path${NC}"
 
-    if ! has_project_marker "$selected_path" && is_general_source_path "$selected_path"; then
+    if is_general_source_path "$selected_path"; then
         echo -e "${YELLOW}No dedicated project folder was detected for this session group.${NC}"
         read -p "Create a dedicated project folder at the destination? (Y/n): " create_answer
         if [[ ! "$create_answer" =~ ^[Nn]$ ]]; then
@@ -365,7 +390,8 @@ main() {
     while true; do
         if [[ "$create_project_folder" == true ]]; then
             read -p "  Destination parent folder: " target_root
-            read -p "  New project folder name: " project_folder_name
+            read -p "  New project folder name [$suggested_folder_name]: " project_folder_name
+            project_folder_name="${project_folder_name:-$suggested_folder_name}"
             project_folder_name=$(printf '%s' "$project_folder_name" | sed 's#[/\\:*?\"<>|]#-#g;s/[[:space:]]\\+/-/g;s/^[.-]*//;s/[.-]*$//')
             if [[ -z "$project_folder_name" || ! -d "$target_root" ]]; then
                 echo -e "${RED}Enter an existing parent folder and a valid new folder name.${NC}"

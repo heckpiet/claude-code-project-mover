@@ -84,6 +84,25 @@ function Test-IsGeneralSourcePath {
     }).Count -gt 0
 }
 
+function Get-SmartProjectFolderSuggestion {
+    param(
+        [Parameter()][AllowNull()][string]$Description,
+        [Parameter(Mandatory)][datetime]$LastActivity,
+        [Parameter()][AllowNull()][string]$SessionId
+    )
+    $candidate = Format-SessionDescription -Text $Description -MaximumLength 100
+    if ($candidate -in @('(no description available)', '(keine Beschreibung verfügbar)')) { $candidate = '' }
+    $candidate = [regex]::Replace($candidate, '^(bitte|kannst du|ich möchte|ich will|erstelle|baue|prüfe|schau(?:e)?(?: mal)?)\s+', '', 'IgnoreCase')
+    $words = @([regex]::Matches($candidate, '[\p{L}\p{Nd}]+') | ForEach-Object { $_.Value } | Select-Object -First 8)
+    $suggestion = ($words -join '-').ToLowerInvariant()
+    if ($suggestion.Length -gt 56) { $suggestion = $suggestion.Substring(0, 56).TrimEnd('-') }
+    if ([string]::IsNullOrWhiteSpace($suggestion)) {
+        $shortSession = if ([string]::IsNullOrWhiteSpace($SessionId)) { 'session' } else { $SessionId.Substring(0, [Math]::Min(8, $SessionId.Length)) }
+        $suggestion = 'claude-projekt-{0}-{1}' -f $LastActivity.ToString('yyyyMMdd-HHmm'), $shortSession
+    }
+    return $suggestion
+}
+
 function ConvertTo-SessionMessageText {
     param([Parameter()][AllowNull()]$Message)
 
@@ -422,8 +441,18 @@ else {
 }
 if (-not (Test-Path -LiteralPath $projectsPath -PathType Container)) { throw "Claude-Code-Projektverzeichnis nicht gefunden: '$projectsPath'." }
 if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) { throw "Migrationsskript nicht gefunden: '$coreScript'." }
-$projects = Get-ClaudeProjects -ProjectsDirectory $projectsPath
+$projects = @(Get-ClaudeProjects -ProjectsDirectory $projectsPath)
 if ($projects.Count -eq 0) { throw 'Keine Claude-Code-Projekte mit lesbaren Sitzungsdaten gefunden.' }
+foreach ($project in $projects) {
+    if ($project.PSObject.Properties.Name -notcontains 'SuggestedFolderName') {
+        $needsFolder = Test-IsGeneralSourcePath -Path $project.SourcePath
+        $latestId = if ($project.SessionData.Sessions.Count -gt 0) { $project.SessionData.Sessions[0].SessionId } else { $null }
+        $suggestion = Get-SmartProjectFolderSuggestion -Description $project.Description -LastActivity $project.LastSession -SessionId $latestId
+        $project | Add-Member -NotePropertyName NeedsDedicatedFolder -NotePropertyValue $needsFolder
+        $project | Add-Member -NotePropertyName FolderStatus -NotePropertyValue $(if ($needsFolder) { 'ORDNER FEHLT' } else { 'Eigener Ordner' })
+        $project | Add-Member -NotePropertyName SuggestedFolderName -NotePropertyValue $suggestion
+    }
+}
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Claude Code Project Mover v$projectVersion"
@@ -488,8 +517,10 @@ $list.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
 [void]$list.Columns.Add('Status', 90)
 [void]$list.Columns.Add('Letzte Sitzung', 140)
 [void]$list.Columns.Add('Sessions', 75)
-[void]$list.Columns.Add('Beschreibung', 340)
-[void]$list.Columns.Add('Quellprojekt', 430)
+[void]$list.Columns.Add('Ordnerstatus', 115)
+[void]$list.Columns.Add('Zielordner-Vorschlag', 210)
+[void]$list.Columns.Add('Beschreibung', 285)
+[void]$list.Columns.Add('Quellprojekt', 300)
 [void]$list.Columns.Add('Typ', 120)
 [void]$list.Columns.Add('Dateien', 70)
 [void]$list.Columns.Add('Größe', 90)
@@ -497,12 +528,14 @@ foreach ($project in $projects) {
     $item = New-Object System.Windows.Forms.ListViewItem('NICHT GEPRÜFT')
     [void]$item.SubItems.Add($project.LastSession.ToString('dd.MM.yyyy HH:mm'))
     [void]$item.SubItems.Add([string]$project.SessionCount)
+    [void]$item.SubItems.Add($project.FolderStatus)
+    [void]$item.SubItems.Add($(if ($project.NeedsDedicatedFolder) { $project.SuggestedFolderName } else { '-' }))
     [void]$item.SubItems.Add($project.Description)
     [void]$item.SubItems.Add($project.SourcePath)
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
-    $item.ToolTipText = "$($project.Description)`r`n$($project.SourcePath)"
+    $item.ToolTipText = "Beschreibung: $($project.Description)`r`nLetzte Sitzung: $($project.LastSession.ToString('dd.MM.yyyy HH:mm'))`r`nSessions: $($project.SessionCount)`r`nOrdnerstatus: $($project.FolderStatus)`r`nVorschlag: $($project.SuggestedFolderName)`r`nQuelle: $($project.SourcePath)"
     $item.Tag = $project
     [void]$list.Items.Add($item)
 }
@@ -634,9 +667,9 @@ $validateAction = {
         $result = Test-SourceProject -Project $item.Tag
         $item.Tag.Validation = $result
         $item.SubItems[0].Text = $result.Status
-        $item.SubItems[5].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
-        $item.SubItems[6].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
-        $item.SubItems[7].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
+        $item.SubItems[7].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
+        $item.SubItems[8].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
+        $item.SubItems[9].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
         if ($result.Status -eq 'FEHLER') { $item.ForeColor = [System.Drawing.Color]::DarkRed }
         elseif ($result.Status -eq 'WARNUNG') { $item.ForeColor = [System.Drawing.Color]::DarkOrange }
         else { $item.ForeColor = [System.Drawing.Color]::DarkGreen }
@@ -685,7 +718,7 @@ $move.Add_Click({
         $requiredBytes = [long]0
         foreach ($item in $selectedItems) {
             $project = $item.Tag
-            $dedicatedFolder = $project.Validation.Markers.Types.Count -eq 0 -and (Test-IsGeneralSourcePath -Path $project.SourcePath)
+            $dedicatedFolder = $project.NeedsDedicatedFolder
             $leaf = Split-Path -Path $project.SourcePath -Leaf
             if ($dedicatedFolder) {
                 $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -698,7 +731,7 @@ $move.Add_Click({
                 if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) {
                     throw 'Der Vorgang wurde abgebrochen. Für ordnerlose Sitzungsgruppen ist ein eigener Ziel-Projektordner erforderlich.'
                 }
-                $defaultName = ConvertTo-SafeProjectFolderName -Name $project.Description
+                $defaultName = $project.SuggestedFolderName
                 $leaf = [Microsoft.VisualBasic.Interaction]::InputBox(
                     'Name des neuen Projektordners:',
                     'Projektordner benennen',
