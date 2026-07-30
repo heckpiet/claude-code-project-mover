@@ -96,6 +96,10 @@ jobs:
             throw "PSScriptAnalyzer found $($issues.Count) error-level issue(s)."
           }
 
+      - name: Test folderless session migration
+        shell: powershell
+        run: .\tests\Test-FolderlessMigration.ps1
+
   powershell-7:
     name: PowerShell 7
     runs-on: windows-latest
@@ -165,3 +169,7 @@ jobs:
           if ($issues.Count -gt 0) {
             throw "PSScriptAnalyzer found $($issues.Count) error-level issue(s)."
           }
+
+      - name: Test folderless session migration
+        shell: pwsh
+        run: .\tests\Test-FolderlessMigration.ps1

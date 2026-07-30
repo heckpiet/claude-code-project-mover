@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## [1.3.0] - 2026-07-30
+
+### Added
+
+- Detection and guided creation of dedicated target folders for session groups without their own project directory
+- Safe folder-name entry in the Windows GUI and PowerShell CLI
+- Automation parameters `-CreateProjectFolder` and `-ProjectFolderName`
+- Bash compatibility flow for creating dedicated destination project folders
+
+### Changed
+
+- General source folders such as a user profile are no longer physically moved when a dedicated folder is created
+- Post-migration validation now confirms the new project folder together with rewritten Claude metadata and `cwd` values
+- Documentation now distinguishes normal project moves from folderless session-group migration
+- Windows PowerShell 5.1 now preserves array behavior when exactly one Claude project exists
+
 ## [1.2.2] - 2026-07-30
 
 ### Fixed

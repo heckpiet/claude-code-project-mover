@@ -105,6 +105,10 @@ Die GUI und die PowerShell-Kommandozeile verwenden dasselbe Inventarmodul. Zeits
 
 Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen gemeinsamen Sammelordner und erzeugt darin je Projekt einen Unterordner. Die direkte PowerShell-Kommandozeile erwartet bereits den vollständigen Ziel-Projektordner und führt bei unklaren Projektmerkmalen durch eine erneute Auswahl.
 
+### Sitzungsgruppe ohne eigenen Projektordner
+
+Fehlen im bisherigen Pfad typische Projektmerkmale, fragt die GUI, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
+
 Beispiel:
 
 ```text

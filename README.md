@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.2.2**
+Aktuelle Version: **1.3.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -49,6 +49,7 @@ Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HER
 - Projekte direkt per Checkbox an- und abwählen
 - gemeinsamer Zielordner über den Windows-Ordnerdialog
 - optionales physisches Verschieben der echten Projektordner
+- eigener, frei benennbarer Ziel-Projektordner für Sitzungsgruppen, die bisher nur in einem allgemeinen Ordner lagen
 - reiner Metadatenmodus für bereits manuell verschobene Projekte
 - Statusanzeige mit Projekttyp, Dateianzahl und Größe
 - sichtbare Warnungen und Fehler vor der Migration
@@ -177,6 +178,8 @@ Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselb
 
 Beim Zielpfad muss der **vollständige neue Projektordner** angegeben werden, nicht nur ein übergeordneter Sammelordner. Kann das interaktive CLI dort keine typische Projektdatei erkennen, erklärt es die Warnung und lässt unmittelbar einen anderen Pfad eingeben oder die Auswahl bewusst bestätigen. Automatisierte Aufrufe bleiben streng und benötigen in diesem Fall weiterhin `-Force`.
 
+Erkennt das interaktive CLI, dass eine Sitzungsgruppe bisher keinen eigenen Projektordner besitzt, fragt es standardmäßig nach der Anlage eines neuen Ordners. In diesem Modus wird ein vorhandener Ziel-Sammelordner plus ein neuer Projektname eingegeben. Der allgemeine Quellordner wird nicht verschoben. Das Skript legt den neuen Ordner an, aktualisiert sämtliche gespeicherten Pfadvarianten in den Claude-Metadaten und prüft anschließend Ordner, Metadatenverzeichnis, JSON/JSONL-Daten und `cwd`-Verweise.
+
 ### Projektübersicht ohne Migration
 
 ```powershell
@@ -210,6 +213,8 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | --- | --- |
 | `-ProjectPath` | Bisheriger absoluter Projektpfad |
 | `-NewPath` | Neuer absoluter Projektpfad |
+| `-CreateProjectFolder` | Behandelt `-NewPath` als Ziel-Sammelordner und legt einen eigenen Projektordner an |
+| `-ProjectFolderName` | Name des mit `-CreateProjectFolder` anzulegenden Projektordners |
 | `-Backup` | Erstellt vor der Änderung ein ZIP-Backup |
 | `-Yes` | Überspringt Rückfragen für automatisierte Aufrufe |
 | `-CheckOnly` | Führt alle Vorprüfungen ohne Änderungen durch |
@@ -329,6 +334,7 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 .
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
+│   ├── workflows/bash.yml
 │   ├── workflows/powershell.yml
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
@@ -339,6 +345,8 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 ├── claude-project-mover-gui.ps1
 ├── claude-project-mover.ps1
 ├── claude-project-mover.sh
+├── tests/
+│   └── Test-FolderlessMigration.ps1
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── SECURITY.md

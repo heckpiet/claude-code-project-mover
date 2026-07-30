@@ -47,6 +47,8 @@ Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows Powe
 
 Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
 
+Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner, fragt die GUI nach einem neuen Ordnernamen. Sie legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quellordner wie das Benutzerprofil wird niemals vollständig verschoben.
+
 ## Was vor dem Verschieben geprüft wird
 
 Das Tool kontrolliert für jedes ausgewählte Projekt:

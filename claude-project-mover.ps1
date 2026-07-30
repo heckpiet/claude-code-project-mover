@@ -19,7 +19,15 @@ The previous absolute path of the project. When omitted, an interactive project
 selection is shown.
 
 .PARAMETER NewPath
-The new absolute path of the project. The directory must already exist.
+The new absolute path of the project. With CreateProjectFolder, this is the
+existing parent directory for the new dedicated folder.
+
+.PARAMETER CreateProjectFolder
+Creates a dedicated destination folder for a session group that previously
+used a general directory.
+
+.PARAMETER ProjectFolderName
+Name of the dedicated folder created below NewPath.
 
 .PARAMETER Backup
 Creates a ZIP backup before changing files. Interactive mode asks whether a
@@ -68,6 +76,9 @@ Maximum number of sessions shown by ListSessions. The default is 10.
 
 .EXAMPLE
 .\claude-project-mover.ps1 -ProjectPath 'C:\Code\OldProject' -NewPath 'D:\Code\OldProject' -CheckOnly
+
+.EXAMPLE
+.\claude-project-mover.ps1 -ProjectPath 'C:\Users\Peter' -NewPath 'D:\Projekte' -CreateProjectFolder -ProjectFolderName 'MeinProjekt' -Backup -Yes
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -77,6 +88,12 @@ param(
 
     [Parameter()]
     [string]$NewPath,
+
+    [Parameter()]
+    [switch]$CreateProjectFolder,
+
+    [Parameter()]
+    [string]$ProjectFolderName,
 
     [Parameter()]
     [switch]$Backup,
@@ -111,7 +128,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.2.2'
+$ScriptVersion = '1.3.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -703,6 +720,37 @@ function Read-YesNo {
     return $answer -match '^(y|yes|j|ja)$'
 }
 
+function ConvertTo-SafeProjectFolderName {
+    param([Parameter(Mandatory)][string]$Name)
+    $cleanName = $Name.Trim()
+    foreach ($character in [System.IO.Path]::GetInvalidFileNameChars()) {
+        $cleanName = $cleanName.Replace([string]$character, '-')
+    }
+    $cleanName = ($cleanName -replace '\s+', '-').Trim('.', '-', ' ')
+    if ([string]::IsNullOrWhiteSpace($cleanName)) { throw 'Der Name für den neuen Projektordner ist ungültig.' }
+    return $cleanName
+}
+
+function Test-IsGeneralSourcePath {
+    param([Parameter(Mandatory)][string]$Path)
+    $normalized = (Normalize-ProjectPath -Path $Path).TrimEnd('\', '/')
+    $candidates = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @(
+        $HOME,
+        [Environment]::GetFolderPath('Desktop'),
+        [Environment]::GetFolderPath('MyDocuments'),
+        (Join-Path $HOME 'Downloads'),
+        $env:OneDrive,
+        $env:OneDriveConsumer,
+        $env:OneDriveCommercial
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            try { [void]$candidates.Add((Normalize-ProjectPath -Path $candidate).TrimEnd('\', '/')) } catch { }
+        }
+    }
+    return @($candidates | Where-Object { $_ -ieq $normalized }).Count -gt 0
+}
+
 function Get-DestinationAssessment {
     param(
         [Parameter(Mandatory)][string]$CandidatePath,
@@ -742,7 +790,7 @@ if (-not (Test-Path -LiteralPath $projectsDirectory -PathType Container)) {
     throw "Claude Code projects directory not found at '$projectsDirectory'."
 }
 
-$projects = Get-ClaudeProjects -ProjectsDirectory $projectsDirectory
+$projects = @(Get-ClaudeProjects -ProjectsDirectory $projectsDirectory)
 if ($projects.Count -eq 0) { throw "No Claude Code projects were found in '$projectsDirectory'." }
 
 if ($ListSessions.IsPresent) {
@@ -766,17 +814,64 @@ else {
 $oldPath = Normalize-ProjectPath -Path $selectedProject.Path
 $interactiveDestination = [string]::IsNullOrWhiteSpace($NewPath)
 $destinationAssessment = $null
+$createDedicatedFolder = $CreateProjectFolder.IsPresent
+
+if ($interactiveDestination -and (Test-Path -LiteralPath $oldPath -PathType Container)) {
+    $sourceHealth = Test-ProjectContent -Path $oldPath
+    if ($sourceHealth.Markers.Count -eq 0 -and (Test-IsGeneralSourcePath -Path $oldPath)) {
+        Write-Host ''
+        Write-Host 'Für diese Sitzungsgruppe wurde kein eigener Projektordner erkannt.' -ForegroundColor Yellow
+        $createDedicatedFolder = Read-YesNo -Prompt 'Am Ziel einen eigenen Projektordner anlegen?' -Default $true
+    }
+}
 
 if ($interactiveDestination) {
     Write-Section 'Neuen Projektpfad eingeben'
     Write-Host "Bisheriger Pfad: $oldPath" -ForegroundColor Yellow
-    Write-Host 'Gib den vollständigen Ziel-Projektordner an, nicht nur dessen übergeordneten Sammelordner.' -ForegroundColor DarkGray
+    if ($createDedicatedFolder) {
+        Write-Host 'Gib den vorhandenen Ziel-Sammelordner an. Darin wird ein eigener Projektordner angelegt.' -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host 'Gib den vollständigen Ziel-Projektordner an, nicht nur dessen übergeordneten Sammelordner.' -ForegroundColor DarkGray
+    }
 }
 
 while ($null -eq $destinationAssessment) {
     $candidatePath = if ($interactiveDestination) { Read-Host 'Neuer Projektpfad' } else { $NewPath }
     try {
-        $candidateAssessment = Get-DestinationAssessment -CandidatePath $candidatePath -OldPath $oldPath -ProjectsDirectory $projectsDirectory
+        if ($createDedicatedFolder) {
+            $targetRoot = Normalize-ProjectPath -Path $candidatePath
+            if (-not [System.IO.Path]::IsPathRooted($targetRoot) -or -not (Test-Path -LiteralPath $targetRoot -PathType Container)) {
+                throw "Der Ziel-Sammelordner existiert nicht: '$targetRoot'."
+            }
+            $folderName = $ProjectFolderName
+            if ([string]::IsNullOrWhiteSpace($folderName) -and $interactiveDestination) {
+                $defaultName = ConvertTo-SafeProjectFolderName -Name $selectedProject.Description
+                $enteredName = Read-Host "Name des neuen Projektordners [$defaultName]"
+                $folderName = if ([string]::IsNullOrWhiteSpace($enteredName)) { $defaultName } else { $enteredName }
+            }
+            if ([string]::IsNullOrWhiteSpace($folderName)) { throw 'ProjectFolderName is required with CreateProjectFolder.' }
+            $folderName = ConvertTo-SafeProjectFolderName -Name $folderName
+            $plannedPath = Join-Path $targetRoot $folderName
+            if (Test-Path -LiteralPath $plannedPath) { throw "Der neue Projektordner existiert bereits: '$plannedPath'." }
+            $metadataFolderName = ConvertTo-ClaudeProjectFolderName -Path $plannedPath
+            $metadataPath = Join-Path $projectsDirectory $metadataFolderName
+            if (Test-Path -LiteralPath $metadataPath) { throw "Für '$plannedPath' existieren bereits Claude-Code-Metadaten." }
+            $candidateAssessment = [pscustomobject]@{
+                Path = $plannedPath
+                FolderName = $metadataFolderName
+                MetadataPath = $metadataPath
+                ProjectHealth = [pscustomobject]@{
+                    Summary = [pscustomobject]@{ FileCount = 0; Bytes = 0 }
+                    Markers = @()
+                    Warnings = @()
+                }
+            }
+            $ProjectFolderName = $folderName
+        }
+        else {
+            $candidateAssessment = Get-DestinationAssessment -CandidatePath $candidatePath -OldPath $oldPath -ProjectsDirectory $projectsDirectory
+        }
     }
     catch {
         if (-not $interactiveDestination) { throw }
@@ -844,6 +939,7 @@ Write-Host "To:       $NewPath" -ForegroundColor Green
 Write-Host "Metadata: $($selectedProject.Directory.FullName)"
 Write-Host "New name: $newMetadataPath"
 Write-Host "Backup:   $createBackup"
+Write-Host "Eigenen Projektordner anlegen: $createDedicatedFolder"
 
 if ($CheckOnly.IsPresent) {
     Write-Host ''
@@ -863,8 +959,14 @@ $rollbackName = '.ROLLBACK__' + [guid]::NewGuid().ToString('N')
 $stagingPath = Join-Path $projectsDirectory $stagingName
 $rollbackPath = Join-Path $projectsDirectory $rollbackName
 $originalRenamed = $false
+$destinationCreated = $false
 
 try {
+    if ($createDedicatedFolder) {
+        [void](New-Item -ItemType Directory -Path $NewPath -ErrorAction Stop)
+        $destinationCreated = $true
+        Write-Host "Projektordner angelegt: $NewPath" -ForegroundColor Green
+    }
     if ($createBackup) {
         $backupPath = New-ProjectBackup -ProjectDirectory $selectedProject.Directory -ProjectsDirectory $projectsDirectory
         Write-Host "Backup created: $backupPath" -ForegroundColor Green
@@ -890,6 +992,9 @@ try {
 
     $finalHealth = Test-MetadataHealth -Path $newMetadataPath -ExpectedCwd $NewPath -RequireExpectedCwd
     if ($finalHealth.Errors.Count -gt 0) { throw ('Final metadata validation failed: ' + ($finalHealth.Errors -join ' ')) }
+    if (-not (Test-Path -LiteralPath $NewPath -PathType Container)) {
+        throw "Der neue Projektordner fehlt nach der Migration: '$NewPath'."
+    }
 
     Remove-Item -LiteralPath $rollbackPath -Recurse -Force
     $originalRenamed = $false
@@ -914,6 +1019,12 @@ catch {
     }
     if (Test-Path -LiteralPath $stagingPath) {
         Remove-Item -LiteralPath $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($destinationCreated -and (Test-Path -LiteralPath $NewPath -PathType Container)) {
+        $remainingItems = @(Get-ChildItem -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue)
+        if ($remainingItems.Count -eq 0) {
+            Remove-Item -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue
+        }
     }
 
     throw
