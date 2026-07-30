@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.2.2"
+SCRIPT_VERSION="1.3.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -135,6 +135,19 @@ get_folder_name() {
     local path="$1"
     # First replace /. with -- (dot folders), then replace remaining / with -
     echo "$path" | sed 's/\/\./--%/g' | sed 's/\//-/g' | sed 's/%//g'
+}
+
+has_project_marker() {
+    local path="$1"
+    [[ -d "$path/.git" || -f "$path/CLAUDE.md" || -f "$path/package.json" || \
+       -f "$path/pyproject.toml" || -f "$path/Cargo.toml" || -f "$path/go.mod" ]]
+}
+
+is_general_source_path() {
+    local path="${1%/}"
+    [[ "$path" == "${HOME%/}" || "$path" == "${HOME%/}/Desktop" || \
+       "$path" == "${HOME%/}/Documents" || "$path" == "${HOME%/}/Downloads" || \
+       ( -n "${OneDrive:-}" && "$path" == "${OneDrive%/}" ) ]]
 }
 
 # List all projects with numbers
@@ -332,6 +345,7 @@ main() {
     fi
 
     local selected_path=$(get_readable_path "$selected_folder")
+    local create_project_folder=false
 
     echo ""
     echo ""
@@ -339,9 +353,32 @@ main() {
     echo -e "${BLUE}───────────────────────────────${NC}"
     echo -e "  Current: ${YELLOW}$selected_path${NC}"
 
+    if ! has_project_marker "$selected_path" && is_general_source_path "$selected_path"; then
+        echo -e "${YELLOW}No dedicated project folder was detected for this session group.${NC}"
+        read -p "Create a dedicated project folder at the destination? (Y/n): " create_answer
+        if [[ ! "$create_answer" =~ ^[Nn]$ ]]; then
+            create_project_folder=true
+        fi
+    fi
+
     # Get new path
     while true; do
-        read -p "  New path: " new_path
+        if [[ "$create_project_folder" == true ]]; then
+            read -p "  Destination parent folder: " target_root
+            read -p "  New project folder name: " project_folder_name
+            project_folder_name=$(printf '%s' "$project_folder_name" | sed 's#[/\\:*?\"<>|]#-#g;s/[[:space:]]\\+/-/g;s/^[.-]*//;s/[.-]*$//')
+            if [[ -z "$project_folder_name" || ! -d "$target_root" ]]; then
+                echo -e "${RED}Enter an existing parent folder and a valid new folder name.${NC}"
+                continue
+            fi
+            new_path="${target_root%/}/$project_folder_name"
+            if [[ -e "$new_path" ]]; then
+                echo -e "${RED}Destination already exists: $new_path${NC}"
+                continue
+            fi
+        else
+            read -p "  New path: " new_path
+        fi
 
         # Validate path
         if [[ -z "$new_path" ]]; then
@@ -358,7 +395,7 @@ main() {
         new_path="${new_path%/}"
 
         # Check if destination folder exists
-        if [[ ! -d "$new_path" ]]; then
+        if [[ "$create_project_folder" != true && ! -d "$new_path" ]]; then
             echo -e "${RED}Folder does not exist: $new_path${NC}"
             echo -e "${YELLOW}Make sure you move your project folder first, then run this script.${NC}"
             continue
@@ -399,8 +436,18 @@ main() {
 
     echo ""
 
+    if [[ "$create_project_folder" == true ]]; then
+        mkdir "$new_path"
+        echo -e "${GREEN}Created dedicated project folder: $new_path${NC}"
+    fi
+
     # Perform move
-    move_project "$selected_folder" "$new_path" > /dev/null
+    if ! move_project "$selected_folder" "$new_path" > /dev/null; then
+        if [[ "$create_project_folder" == true ]]; then
+            rmdir "$new_path" 2>/dev/null || true
+        fi
+        return 1
+    fi
 
     echo -e "${GREEN}=====================================${NC}"
     echo -e "${GREEN}  Project updated successfully!${NC}"

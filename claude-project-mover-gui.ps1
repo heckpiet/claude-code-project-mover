@@ -40,6 +40,7 @@ if ($env:OS -ne 'Windows_NT') {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName Microsoft.VisualBasic
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $inventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -55,6 +56,32 @@ function Get-ClaudeConfigPath {
         return [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($env:CLAUDE_CONFIG_DIR))
     }
     return Join-Path $HOME '.claude'
+}
+
+function ConvertTo-SafeProjectFolderName {
+    param([Parameter(Mandatory)][string]$Name)
+    $cleanName = $Name.Trim()
+    foreach ($character in [System.IO.Path]::GetInvalidFileNameChars()) {
+        $cleanName = $cleanName.Replace([string]$character, '-')
+    }
+    return (($cleanName -replace '\s+', '-').Trim('.', '-', ' '))
+}
+
+function Test-IsGeneralSourcePath {
+    param([Parameter(Mandatory)][string]$Path)
+    $normalized = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $candidates = @(
+        $HOME,
+        [Environment]::GetFolderPath('Desktop'),
+        [Environment]::GetFolderPath('MyDocuments'),
+        (Join-Path $HOME 'Downloads'),
+        $env:OneDrive,
+        $env:OneDriveConsumer,
+        $env:OneDriveCommercial
+    )
+    return @($candidates | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_) -and [System.IO.Path]::GetFullPath($_).TrimEnd('\') -ieq $normalized
+    }).Count -gt 0
 }
 
 function ConvertTo-SessionMessageText {
@@ -658,11 +685,38 @@ $move.Add_Click({
         $requiredBytes = [long]0
         foreach ($item in $selectedItems) {
             $project = $item.Tag
+            $dedicatedFolder = $project.Validation.Markers.Types.Count -eq 0 -and (Test-IsGeneralSourcePath -Path $project.SourcePath)
             $leaf = Split-Path -Path $project.SourcePath -Leaf
+            if ($dedicatedFolder) {
+                $answer = [System.Windows.Forms.MessageBox]::Show(
+                    $form,
+                    "Für diese Sitzungsgruppe wurde kein eigener Projektordner erkannt:`r`n$($project.SourcePath)`r`n`r`nAm Ziel einen eigenen Projektordner anlegen?",
+                    'Eigenen Projektordner anlegen',
+                    'YesNo',
+                    'Question'
+                )
+                if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) {
+                    throw 'Der Vorgang wurde abgebrochen. Für ordnerlose Sitzungsgruppen ist ein eigener Ziel-Projektordner erforderlich.'
+                }
+                $defaultName = ConvertTo-SafeProjectFolderName -Name $project.Description
+                $leaf = [Microsoft.VisualBasic.Interaction]::InputBox(
+                    'Name des neuen Projektordners:',
+                    'Projektordner benennen',
+                    $defaultName
+                )
+                $leaf = ConvertTo-SafeProjectFolderName -Name $leaf
+                if ([string]::IsNullOrWhiteSpace($leaf)) { throw 'Es wurde kein gültiger Projektordnername angegeben.' }
+            }
             $destination = Join-Path $targetRoot $leaf
             if (Test-Path -LiteralPath $destination) { throw "Ziel existiert bereits: $destination" }
-            $requiredBytes += $project.Validation.Manifest.Bytes
-            [void]$plan.Add([pscustomobject]@{ Project = $project; Destination = $destination })
+            if (-not $dedicatedFolder) { $requiredBytes += $project.Validation.Manifest.Bytes }
+            [void]$plan.Add([pscustomobject]@{
+                Project = $project
+                Destination = $destination
+                TargetRoot = $targetRoot
+                FolderName = $leaf
+                CreateDedicatedFolder = $dedicatedFolder
+            })
         }
 
         if ($moveFiles.Checked) {
@@ -673,7 +727,10 @@ $move.Add_Click({
             }
         }
 
-        $summary = ($plan | ForEach-Object { "$($_.Project.SourcePath)`r`n  -> $($_.Destination)`r`n  $($_.Project.Validation.Manifest.FileCount) Dateien, $(Format-Bytes $_.Project.Validation.Manifest.Bytes)" }) -join "`r`n`r`n"
+        $summary = ($plan | ForEach-Object {
+            $mode = if ($_.CreateDedicatedFolder) { 'neuer eigener Projektordner; nur Sitzungsmetadaten werden umgestellt' } else { "$($_.Project.Validation.Manifest.FileCount) Dateien, $(Format-Bytes $_.Project.Validation.Manifest.Bytes)" }
+            "$($_.Project.SourcePath)`r`n  -> $($_.Destination)`r`n  $mode"
+        }) -join "`r`n`r`n"
         $answer = [System.Windows.Forms.MessageBox]::Show($form, "Geprüfter Verschiebeplan:`r`n`r`n$summary`r`n`r`nFortfahren?", 'Verschieben bestätigen', 'YesNo', 'Question')
         if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
 
@@ -688,7 +745,10 @@ $move.Add_Click({
             try {
                 $status.Text = "Verschiebe $source"
                 [System.Windows.Forms.Application]::DoEvents()
-                if ($moveFiles.Checked) {
+                if ($entry.CreateDedicatedFolder) {
+                    $status.Text = "Lege eigenen Projektordner für $source an"
+                }
+                elseif ($moveFiles.Checked) {
                     Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
                     $moved = $true
                     $verification = Test-DestinationManifest -Manifest $manifest -Destination $destination
@@ -701,6 +761,11 @@ $move.Add_Click({
                 }
 
                 $arguments = @{ ProjectPath = $source; NewPath = $destination; Yes = $true }
+                if ($entry.CreateDedicatedFolder) {
+                    $arguments.NewPath = $entry.TargetRoot
+                    $arguments.CreateProjectFolder = $true
+                    $arguments.ProjectFolderName = $entry.FolderName
+                }
                 if ($backup.Checked) { $arguments.Backup = $true }
                 & $coreScript @arguments
                 $completed++
