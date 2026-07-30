@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 
 <#
 .SYNOPSIS
@@ -41,6 +41,11 @@ if ($env:OS -ne 'Windows_NT') {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
+
+$inventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
+if (Test-Path -LiteralPath $inventoryModulePath -PathType Leaf) {
+    Import-Module -Name $inventoryModulePath -Force
+}
 
 function Get-ClaudeConfigPath {
     if (-not [string]::IsNullOrWhiteSpace($ClaudeConfigDirectory)) {
@@ -160,6 +165,10 @@ function Get-CwdValuesFromJsonl {
 
 function Get-ClaudeProjects {
     param([Parameter(Mandatory)][string]$ProjectsDirectory)
+
+    if (Get-Command -Name Get-ClaudeProjectInventory -ErrorAction SilentlyContinue) {
+        return @(Get-ClaudeProjectInventory -ProjectsDirectory $ProjectsDirectory)
+    }
 
     $items = foreach ($directory in Get-ChildItem -LiteralPath $ProjectsDirectory -Directory -ErrorAction Stop) {
         if ($directory.Name -match '^(BACKUP__|\.MIGRATION__|\.ROLLBACK__)') { continue }
@@ -348,12 +357,38 @@ function Format-Bytes {
     return "$Bytes Bytes"
 }
 
+function Set-ButtonStyle {
+    param(
+        [Parameter(Mandatory)][System.Windows.Forms.Button]$Button,
+        [Parameter()][switch]$Primary
+    )
+
+    $Button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $Button.FlatAppearance.BorderSize = 1
+    $Button.Cursor = [System.Windows.Forms.Cursors]::Hand
+    if ($Primary.IsPresent) {
+        $Button.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+        $Button.ForeColor = [System.Drawing.Color]::White
+        $Button.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    }
+    else {
+        $Button.BackColor = [System.Drawing.Color]::White
+        $Button.ForeColor = [System.Drawing.Color]::FromArgb(31, 41, 55)
+        $Button.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(209, 213, 219)
+    }
+}
+
 $configPath = Get-ClaudeConfigPath
 $projectsPath = Join-Path $configPath 'projects'
 $coreScript = Join-Path $PSScriptRoot 'claude-project-mover.ps1'
 $versionFile = Join-Path $PSScriptRoot 'VERSION'
 $projectVersion = if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
     (Get-Content -LiteralPath $versionFile -Raw).Trim()
+}
+elseif (Test-Path -LiteralPath $coreScript -PathType Leaf) {
+    $coreContent = [System.IO.File]::ReadAllText($coreScript)
+    $coreVersionMatch = [regex]::Match($coreContent, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
+    if ($coreVersionMatch.Success) { $coreVersionMatch.Groups[1].Value } else { 'unbekannt' }
 }
 else {
     'unbekannt'
@@ -369,19 +404,46 @@ $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(1420, 800)
 $form.MinimumSize = New-Object System.Drawing.Size(1100, 680)
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$form.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+
+$header = New-Object System.Windows.Forms.Panel
+$header.Dock = [System.Windows.Forms.DockStyle]::Top
+$header.Height = 94
+$header.BackColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
+$form.Controls.Add($header)
 
 $title = New-Object System.Windows.Forms.Label
 $title.Text = "Claude Code Projekte sicher verschieben - v$projectVersion"
 $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 16)
+$title.ForeColor = [System.Drawing.Color]::White
 $title.AutoSize = $true
-$title.Location = New-Object System.Drawing.Point(20, 16)
-$form.Controls.Add($title)
+$title.Location = New-Object System.Drawing.Point(24, 15)
+$header.Controls.Add($title)
 
 $description = New-Object System.Windows.Forms.Label
 $description.Text = 'Letzte Sitzungen prüfen, Projekte per Checkbox auswählen, Quellen validieren und anschließend verschieben.'
+$description.ForeColor = [System.Drawing.Color]::FromArgb(203, 213, 225)
 $description.AutoSize = $true
-$description.Location = New-Object System.Drawing.Point(23, 50)
-$form.Controls.Add($description)
+$description.Location = New-Object System.Drawing.Point(27, 50)
+$header.Controls.Add($description)
+
+$projectLink = New-Object System.Windows.Forms.LinkLabel
+$projectLink.Text = 'heckpiet | GitHub-Projekt'
+$projectLink.LinkColor = [System.Drawing.Color]::FromArgb(147, 197, 253)
+$projectLink.ActiveLinkColor = [System.Drawing.Color]::White
+$projectLink.AutoSize = $true
+$projectLink.Anchor = 'Top,Right'
+$projectLink.Location = New-Object System.Drawing.Point(1235, 52)
+$projectLink.Add_LinkClicked({ Start-Process 'https://github.com/heckpiet/claude-code-project-mover' })
+$header.Controls.Add($projectLink)
+
+$overviewLabel = New-Object System.Windows.Forms.Label
+$overviewLabel.Text = "$($projects.Count) Projekte gefunden | nach letzter Sitzung sortiert"
+$overviewLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
+$overviewLabel.ForeColor = [System.Drawing.Color]::FromArgb(55, 65, 81)
+$overviewLabel.AutoSize = $true
+$overviewLabel.Location = New-Object System.Drawing.Point(24, 106)
+$form.Controls.Add($overviewLabel)
 
 $list = New-Object System.Windows.Forms.ListView
 $list.CheckBoxes = $true
@@ -389,9 +451,13 @@ $list.FullRowSelect = $true
 $list.GridLines = $true
 $list.View = [System.Windows.Forms.View]::Details
 $list.Anchor = 'Top,Left,Right,Bottom'
-$list.Location = New-Object System.Drawing.Point(24, 82)
-$list.Size = New-Object System.Drawing.Size(1355, 375)
+$list.Location = New-Object System.Drawing.Point(24, 130)
+$list.Size = New-Object System.Drawing.Size(1355, 305)
 $list.ShowItemToolTips = $true
+$list.HideSelection = $false
+$list.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$list.BackColor = [System.Drawing.Color]::White
+$list.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
 [void]$list.Columns.Add('Status', 90)
 [void]$list.Columns.Add('Letzte Sitzung', 140)
 [void]$list.Columns.Add('Sessions', 75)
@@ -417,50 +483,68 @@ $form.Controls.Add($list)
 
 $selectAll = New-Object System.Windows.Forms.Button
 $selectAll.Text = 'Alle auswählen'
-$selectAll.Location = New-Object System.Drawing.Point(24, 468)
+$selectAll.Location = New-Object System.Drawing.Point(24, 448)
 $selectAll.Size = New-Object System.Drawing.Size(110, 30)
 $selectAll.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $true } })
+Set-ButtonStyle -Button $selectAll
 $form.Controls.Add($selectAll)
 
 $clear = New-Object System.Windows.Forms.Button
 $clear.Text = 'Auswahl löschen'
-$clear.Location = New-Object System.Drawing.Point(142, 468)
+$clear.Location = New-Object System.Drawing.Point(142, 448)
 $clear.Size = New-Object System.Drawing.Size(120, 30)
 $clear.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $false } })
+Set-ButtonStyle -Button $clear
 $form.Controls.Add($clear)
 
 $validate = New-Object System.Windows.Forms.Button
 $validate.Text = 'Quellen prüfen'
-$validate.Location = New-Object System.Drawing.Point(270, 468)
+$validate.Location = New-Object System.Drawing.Point(270, 448)
 $validate.Size = New-Object System.Drawing.Size(125, 30)
+Set-ButtonStyle -Button $validate -Primary
 $form.Controls.Add($validate)
+
+$selectionLabel = New-Object System.Windows.Forms.Label
+$selectionLabel.Text = '0 Projekte ausgewählt'
+$selectionLabel.AutoSize = $true
+$selectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
+$selectionLabel.Location = New-Object System.Drawing.Point(414, 456)
+$form.Controls.Add($selectionLabel)
+$list.Add_ItemChecked({
+    $checkedCount = $list.CheckedItems.Count
+    if (-not $_.Item.Checked) { $checkedCount++ } else { $checkedCount-- }
+    $selectionLabel.Text = "$checkedCount Projekte ausgewählt"
+})
 
 $details = New-Object System.Windows.Forms.TextBox
 $details.Multiline = $true
 $details.ReadOnly = $true
 $details.ScrollBars = 'Vertical'
 $details.Anchor = 'Left,Right,Bottom'
-$details.Location = New-Object System.Drawing.Point(24, 508)
+$details.Location = New-Object System.Drawing.Point(24, 490)
 $details.Size = New-Object System.Drawing.Size(1355, 82)
 $details.Text = 'Wähle Projekte anhand von Zeitstempel und Beschreibung aus und klicke auf "Quellen prüfen".'
+$details.BackColor = [System.Drawing.Color]::White
+$details.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $form.Controls.Add($details)
 
 $targetLabel = New-Object System.Windows.Forms.Label
 $targetLabel.Text = 'Gemeinsamer Zielordner'
 $targetLabel.AutoSize = $true
-$targetLabel.Location = New-Object System.Drawing.Point(24, 604)
+$targetLabel.Location = New-Object System.Drawing.Point(24, 592)
+$targetLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
 $form.Controls.Add($targetLabel)
 
 $targetText = New-Object System.Windows.Forms.TextBox
 $targetText.Anchor = 'Left,Right,Bottom'
-$targetText.Location = New-Object System.Drawing.Point(24, 626)
+$targetText.Location = New-Object System.Drawing.Point(24, 614)
 $targetText.Size = New-Object System.Drawing.Size(1220, 25)
 $form.Controls.Add($targetText)
 
 $browse = New-Object System.Windows.Forms.Button
 $browse.Text = 'Durchsuchen ...'
 $browse.Anchor = 'Right,Bottom'
-$browse.Location = New-Object System.Drawing.Point(1254, 623)
+$browse.Location = New-Object System.Drawing.Point(1254, 611)
 $browse.Size = New-Object System.Drawing.Size(125, 30)
 $browse.Add_Click({
     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -469,20 +553,21 @@ $browse.Add_Click({
     if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) { $targetText.Text = $dialog.SelectedPath }
     $dialog.Dispose()
 })
+Set-ButtonStyle -Button $browse
 $form.Controls.Add($browse)
 
 $moveFiles = New-Object System.Windows.Forms.CheckBox
 $moveFiles.Text = 'Projektverzeichnisse physisch verschieben'
 $moveFiles.Checked = -not $NoProjectMove.IsPresent
 $moveFiles.AutoSize = $true
-$moveFiles.Location = New-Object System.Drawing.Point(24, 665)
+$moveFiles.Location = New-Object System.Drawing.Point(24, 654)
 $form.Controls.Add($moveFiles)
 
 $backup = New-Object System.Windows.Forms.CheckBox
 $backup.Text = 'Claude-Metadaten als ZIP sichern'
 $backup.Checked = $true
 $backup.AutoSize = $true
-$backup.Location = New-Object System.Drawing.Point(310, 665)
+$backup.Location = New-Object System.Drawing.Point(310, 654)
 $form.Controls.Add($backup)
 
 $status = New-Object System.Windows.Forms.Label
@@ -490,6 +575,7 @@ $status.Text = 'Bereit'
 $status.Anchor = 'Left,Right,Bottom'
 $status.Location = New-Object System.Drawing.Point(24, 707)
 $status.Size = New-Object System.Drawing.Size(730, 25)
+$status.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
 $form.Controls.Add($status)
 
 $cancel = New-Object System.Windows.Forms.Button
@@ -498,6 +584,7 @@ $cancel.Anchor = 'Right,Bottom'
 $cancel.Location = New-Object System.Drawing.Point(1140, 700)
 $cancel.Size = New-Object System.Drawing.Size(105, 34)
 $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+Set-ButtonStyle -Button $cancel
 $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
@@ -506,6 +593,7 @@ $move.Text = 'Verschieben'
 $move.Anchor = 'Right,Bottom'
 $move.Location = New-Object System.Drawing.Point(1254, 700)
 $move.Size = New-Object System.Drawing.Size(125, 34)
+Set-ButtonStyle -Button $move -Primary
 $form.Controls.Add($move)
 $form.AcceptButton = $move
 

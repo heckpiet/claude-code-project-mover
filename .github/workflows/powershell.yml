@@ -7,11 +7,13 @@ on:
       - 'agent/**'
     paths:
       - '**.ps1'
+      - '**.psm1'
       - 'VERSION'
       - '.github/workflows/powershell.yml'
   pull_request:
     paths:
       - '**.ps1'
+      - '**.psm1'
       - 'VERSION'
       - '.github/workflows/powershell.yml'
   workflow_dispatch:
@@ -30,7 +32,7 @@ jobs:
       - name: Parse scripts
         shell: powershell
         run: |
-          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse
+          $scriptFiles = Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -File -Recurse
           foreach ($scriptFile in $scriptFiles) {
             $tokens = $null
             $errors = $null
@@ -71,7 +73,7 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
           $issues = @(
-            Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse |
+            Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -File -Recurse |
               ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Error }
           )
           $issues | Format-Table -AutoSize
@@ -89,7 +91,7 @@ jobs:
       - name: Parse scripts
         shell: pwsh
         run: |
-          $scriptFiles = Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse
+          $scriptFiles = Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -File -Recurse
           foreach ($scriptFile in $scriptFiles) {
             $tokens = $null
             $errors = $null
@@ -130,7 +132,7 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
           $issues = @(
-            Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse |
+            Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -File -Recurse |
               ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Error }
           )
           $issues | Format-Table -AutoSize
