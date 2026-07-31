@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [1.8.2] - 2026-07-31
+
+### Fixed
+
+- README destination-conflict guidance now matches the confirmed existing-folder adoption behavior
+
 ## [1.8.1] - 2026-07-31
 
 ### Changed

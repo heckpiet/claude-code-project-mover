@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.8.1'
+$ScriptVersion = '1.8.2'
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
 }

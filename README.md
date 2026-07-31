@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.8.1**
+Aktuelle Version: **1.8.2**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -68,7 +68,7 @@ Vor dem Verschieben kontrolliert das Tool für jedes Projekt:
 - gespeicherte `cwd`-Pfade passen zum ausgewählten Quellordner
 - typische Projektmerkmale und Projekttypen werden erkannt
 - Dateianzahl und Gesamtgröße werden ermittelt
-- Zielpfad ist frei und kollidiert nicht mit vorhandenen Ordnern
+- Zielpfad ist frei oder ein vorhandener Projektordner wurde ausdrücklich zur sicheren Übernahme bestätigt
 - Herkunftshistorie und Session-Bundles am Ziel enthalten keine bereits übertragene identische Session
 
 Erkannte Merkmale umfassen unter anderem:
@@ -364,7 +364,7 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 
 - Claude Code vor der Migration vollständig schließen.
 - Für wichtige Sitzungsverläufe das Backup aktiviert lassen.
-- Bestehende Zielordner werden nicht überschrieben oder zusammengeführt.
+- Bestehende Zielordner werden nur nach ausdrücklicher Bestätigung übernommen. Vorhandene Dateien bleiben erhalten; nur fehlende sichere Session-Artefakte sowie aktualisierte Bundle- und Herkunftsdaten werden ergänzt.
 - Mehrere Projekte werden nacheinander und nicht als eine gemeinsame Transaktion verarbeitet.
 - Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
 - Die Metadatenstruktur von Claude Code ist nicht vollständig dokumentiert und kann sich künftig ändern.
