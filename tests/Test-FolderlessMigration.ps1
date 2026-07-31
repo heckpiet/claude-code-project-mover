@@ -88,7 +88,7 @@ try {
     $firstProjectId = [string]$origin.projectId
     $secondTarget = Join-Path $targetRoot 'dedicated-session-project-moved'
     Move-Item -LiteralPath $targetProject -Destination $secondTarget
-    & $mover -ProjectPath $targetProject -NewPath $secondTarget -TransferMode Move -Yes -SkipSpaceCheck -Force
+    & $mover -ProjectPath $targetProject -NewPath $secondTarget -TransferMode Move -Yes -SkipSpaceCheck -Force -AllowRepeatedTransfer
 
     $secondOriginPath = Join-Path $secondTarget '.claude-project-origin.json'
     $secondOrigin = [System.IO.File]::ReadAllText($secondOriginPath) | ConvertFrom-Json

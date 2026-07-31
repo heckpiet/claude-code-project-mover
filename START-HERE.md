@@ -45,6 +45,8 @@ Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows Powe
 6. **Claude-Metadaten als ZIP sichern**, **Herkunft im Ziel dokumentieren**, **Session-Paket sichern** und **Sichere Session-Dateien kopieren** aktiviert lassen.
 7. Auf **Ausführen** klicken und den Plan bestätigen.
 
+Vor der Bestätigung prüft das Tool, ob im Ziel bereits eine Herkunftshistorie oder ein Session-Paket mit demselben Quellpfad beziehungsweise derselben Session-ID liegt. Bei einem Treffer wird der vorhandene Projektordner angezeigt; ohne ausdrückliche Bestätigung findet keine zweite Übertragung statt.
+
 Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
 
 Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner oder liegt sie in einem erkannten Sammelordner mit weiteren Claude-Projekten, fragt die GUI nach einem neuen Ordnernamen. Sie schlägt aus Titel oder Sitzungsinhalt einen Namen vor, legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quell- oder Sammelordner wird niemals vollständig verschoben.

@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.7.0**
+Aktuelle Version: **1.8.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -55,6 +55,7 @@ Eine ausführliche deutschsprachige Anleitung steht in [START-HERE.md](START-HER
 - reiner Metadatenmodus für bereits manuell verschobene Projekte
 - Statusanzeige mit Projekttyp, Dateianzahl und Größe
 - sichtbare Warnungen und Fehler vor der Migration
+- Prüfung des Zielbereichs auf frühere Übertragungen desselben Projekts oder derselben Session
 
 ### Quellenprüfung
 
@@ -68,6 +69,7 @@ Vor dem Verschieben kontrolliert das Tool für jedes Projekt:
 - typische Projektmerkmale und Projekttypen werden erkannt
 - Dateianzahl und Gesamtgröße werden ermittelt
 - Zielpfad ist frei und kollidiert nicht mit vorhandenen Ordnern
+- Herkunftshistorie und Session-Bundles am Ziel enthalten keine bereits übertragene identische Session
 
 Erkannte Merkmale umfassen unter anderem:
 
@@ -106,6 +108,7 @@ Die PowerShell-Engine:
 - bearbeitet die Metadaten zunächst in einer Arbeitskopie
 - validiert die aktualisierten Daten vor der Aktivierung
 - dokumentiert Herkunft und Übertragungshistorie portabel im Zielprojekt
+- erkennt Wiederholungen anhand des ursprünglichen Quellpfads und identischer Session-IDs
 - sichert vollständige Claude-Sessions portabel in `.claude-session-bundle`
 - übernimmt `memory`, `tool-results`, `file-history`, `scratchpad` und `tasks`, soweit vorhanden
 - erkennt bei ordnerlosen Sessions sichere, von Claude geschriebene Artefaktbereiche und kopiert sie ins Ziel
@@ -226,6 +229,7 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | `-CreateProjectFolder` | Behandelt `-NewPath` als Ziel-Sammelordner und legt einen eigenen Projektordner an |
 | `-ProjectFolderName` | Name des mit `-CreateProjectFolder` anzulegenden Projektordners |
 | `-AdoptExistingProjectFolder` | Verwendet einen bereits vorhandenen Ziel-Projektordner, ohne dessen Inhalt zu überschreiben |
+| `-AllowRepeatedTransfer` | Erlaubt nach ausdrücklicher Prüfung eine am Ziel erkannte erneute Übertragung |
 | `-TransferMode` | Dokumentierte Übertragungsart: `Move`, `Copy`, `MetadataOnly` oder `CreateFolder` |
 | `-NoOriginMetadata` | Deaktiviert die Herkunftsdatei im Ziel bewusst |
 | `-NoSessionBundle` | Deaktiviert die portable Kopie von Session-Metadaten und Claude-Hilfsdaten |
@@ -244,6 +248,8 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 ## Herkunft und Übertragungshistorie
 
 Nach einer erfolgreichen Migration liegt im Zielprojekt standardmäßig `.claude-project-origin.json`. Die Datei bleibt beim späteren Kopieren oder Verschieben im Projekt und wird bei weiteren Läufen um einen neuen Eintrag ergänzt.
+
+Vor einer neuen Migration durchsucht das Tool den gewählten Zielbereich nach diesen Herkunftsdateien und nach `.claude-session-bundle/manifest.json`. Stimmen der ursprüngliche Quellpfad oder eine Session-ID überein, zeigt CLI, GUI beziehungsweise Bash den bereits vorhandenen Projektordner an und fragt vor einer Wiederholung ausdrücklich nach. Nicht interaktive PowerShell-Aufrufe werden standardmäßig blockiert und können nur bewusst mit `-AllowRepeatedTransfer` fortgesetzt werden.
 
 Gespeichert werden eine dauerhafte Projekt-ID, Quell- und Zielpfad, Computer- und Benutzername, optionale Windows-Domäne, Betriebssystem, UTC- und lokale Zeit, Zeitzone, Übertragungsart, Tool-Version, Projektmerkmale, Dateianzahl und Größe, Sitzungszählwerte, letzte Aktivität sowie das Ergebnis der Zielordner-, Metadaten- und `cwd`-Nachprüfung.
 
