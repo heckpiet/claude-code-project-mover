@@ -41,6 +41,10 @@ Disables the portable .claude-session-bundle copy in the destination.
 .PARAMETER NoArtifactCopy
 Disables discovery and copying of safe files created by folderless sessions.
 
+.PARAMETER AdoptExistingProjectFolder
+Uses an already existing suggested destination folder for a folderless session
+instead of creating it. Existing files are preserved and never overwritten.
+
 .PARAMETER Backup
 Creates a ZIP backup before changing files. Interactive mode asks whether a
 backup should be created when this switch is not supplied.
@@ -121,6 +125,9 @@ param(
     [switch]$NoArtifactCopy,
 
     [Parameter()]
+    [switch]$AdoptExistingProjectFolder,
+
+    [Parameter()]
     [switch]$Backup,
 
     [Parameter()]
@@ -153,7 +160,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.6.0'
+$ScriptVersion = '1.7.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -1120,12 +1127,16 @@ $oldPath = Normalize-ProjectPath -Path $selectedProject.Path
 $interactiveDestination = [string]::IsNullOrWhiteSpace($NewPath)
 $destinationAssessment = $null
 $createDedicatedFolder = $CreateProjectFolder.IsPresent
+$folderlessMigration = $CreateProjectFolder.IsPresent -or $AdoptExistingProjectFolder.IsPresent
 
 if ($interactiveDestination -and (Test-Path -LiteralPath $oldPath -PathType Container)) {
-    if (Test-IsGeneralSourcePath -Path $oldPath) {
+    $needsFolder = (Test-IsGeneralSourcePath -Path $oldPath) -or
+        ($selectedProject.PSObject.Properties.Name -contains 'NeedsDedicatedFolder' -and $selectedProject.NeedsDedicatedFolder)
+    if ($needsFolder) {
         Write-Host ''
-        Write-Host 'Für diese Sitzungsgruppe wurde kein eigener Projektordner erkannt.' -ForegroundColor Yellow
+        Write-Host "Für diese Sitzungsgruppe wurde kein eigener Projektordner erkannt ($($selectedProject.FolderStatus))." -ForegroundColor Yellow
         $createDedicatedFolder = Read-YesNo -Prompt 'Am Ziel einen eigenen Projektordner anlegen?' -Default $true
+        $folderlessMigration = $createDedicatedFolder
     }
 }
 
@@ -1162,19 +1173,42 @@ while ($null -eq $destinationAssessment) {
             if ([string]::IsNullOrWhiteSpace($folderName)) { throw 'ProjectFolderName is required with CreateProjectFolder.' }
             $folderName = ConvertTo-SafeProjectFolderName -Name $folderName
             $plannedPath = Join-Path $targetRoot $folderName
-            if (Test-Path -LiteralPath $plannedPath) { throw "Der neue Projektordner existiert bereits: '$plannedPath'." }
             $metadataFolderName = ConvertTo-ClaudeProjectFolderName -Path $plannedPath
             $metadataPath = Join-Path $projectsDirectory $metadataFolderName
             if (Test-Path -LiteralPath $metadataPath) { throw "Für '$plannedPath' existieren bereits Claude-Code-Metadaten." }
-            $candidateAssessment = [pscustomobject]@{
-                Path = $plannedPath
-                FolderName = $metadataFolderName
-                MetadataPath = $metadataPath
-                ProjectHealth = [pscustomobject]@{
+            if (Test-Path -LiteralPath $plannedPath) {
+                if (-not $interactiveDestination) {
+                    throw "Der vorgeschlagene Projektordner existiert bereits: '$plannedPath'. Verwende -AdoptExistingProjectFolder oder wähle einen anderen Namen."
+                }
+                Write-Host ''
+                Write-Host "Der vorgeschlagene Projektordner existiert bereits: $plannedPath" -ForegroundColor Yellow
+                Write-Host '[V] Vorhandenen Ordner verwenden  [N] Anderen Namen wählen  [A] Abbrechen' -ForegroundColor Cyan
+                $conflictChoice = (Read-Host 'Auswahl [V/N/A]').Trim()
+                if ($conflictChoice -match '^(a|abbrechen|c|cancel)$') {
+                    Write-Host 'Vorgang abgebrochen.' -ForegroundColor Yellow
+                    return
+                }
+                if ($conflictChoice -notmatch '^(v|verwenden|u|use)$') {
+                    $ProjectFolderName = $null
+                    continue
+                }
+                $createDedicatedFolder = $false
+                $AdoptExistingProjectFolder = $true
+                $folderlessMigration = $true
+                $candidateHealth = Test-ProjectContent -Path $plannedPath
+            }
+            else {
+                $candidateHealth = [pscustomobject]@{
                     Summary = [pscustomobject]@{ FileCount = 0; Bytes = 0 }
                     Markers = @()
                     Warnings = @()
                 }
+            }
+            $candidateAssessment = [pscustomobject]@{
+                Path = $plannedPath
+                FolderName = $metadataFolderName
+                MetadataPath = $metadataPath
+                ProjectHealth = $candidateHealth
             }
             $ProjectFolderName = $folderName
         }
@@ -1192,7 +1226,8 @@ while ($null -eq $destinationAssessment) {
         Write-Warning $warning
     }
 
-    if ($candidateAssessment.ProjectHealth.Warnings.Count -gt 0 -and -not $Force.IsPresent) {
+    if ($candidateAssessment.ProjectHealth.Warnings.Count -gt 0 -and
+        -not $Force.IsPresent -and -not $AdoptExistingProjectFolder.IsPresent) {
         if (-not $interactiveDestination) {
             throw 'Der Zielordner konnte nicht eindeutig als Projekt erkannt werden. Verwende den vollständigen Projektordner oder bestätige bewusst mit -Force.'
         }
@@ -1268,7 +1303,7 @@ Write-Host "Eigenen Projektordner anlegen: $createDedicatedFolder"
 Write-Host "Übertragungsart: $effectiveTransferMode"
 Write-Host "Herkunftsmetadaten: $(-not $NoOriginMetadata.IsPresent)"
 Write-Host "Portables Session-Paket: $(-not $NoSessionBundle.IsPresent)"
-Write-Host "Sichere Session-Artefakte kopieren: $($createDedicatedFolder -and -not $NoArtifactCopy.IsPresent)"
+Write-Host "Sichere Session-Artefakte kopieren: $($folderlessMigration -and -not $NoArtifactCopy.IsPresent)"
 
 if ($CheckOnly.IsPresent) {
     Write-Host ''
@@ -1329,7 +1364,7 @@ try {
     if (-not (Test-Path -LiteralPath $NewPath -PathType Container)) {
         throw "Der neue Projektordner fehlt nach der Migration: '$NewPath'."
     }
-    if ($createDedicatedFolder -and -not $NoArtifactCopy.IsPresent) {
+    if ($folderlessMigration -and -not $NoArtifactCopy.IsPresent) {
         $copiedArtifacts = @(Copy-SessionArtifacts -Inventory $sessionTransfer -SourcePath $oldPath -DestinationPath $NewPath)
         if ($copiedArtifacts.Count -gt 0) {
             Write-Host ('Session-Artefakte kopiert: ' + ($copiedArtifacts -join ', ')) -ForegroundColor Green

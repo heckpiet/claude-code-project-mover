@@ -47,7 +47,9 @@ Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows Powe
 
 Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
 
-Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner, fragt die GUI nach einem neuen Ordnernamen. Sie legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quellordner wie das Benutzerprofil wird niemals vollständig verschoben.
+Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner oder liegt sie in einem erkannten Sammelordner mit weiteren Claude-Projekten, fragt die GUI nach einem neuen Ordnernamen. Sie schlägt aus Titel oder Sitzungsinhalt einen Namen vor, legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quell- oder Sammelordner wird niemals vollständig verschoben.
+
+Existiert der vorgeschlagene Unterordner schon, kannst du ihn verwenden, einen anderen Namen wählen oder abbrechen. Beim Verwenden bleiben vorhandene Dateien bestehen; das Tool ergänzt nur die zur Session gehörenden sicheren Dateien und Claude-Hilfsdaten.
 
 Wähle je nach gewünschtem Ablauf **Verschieben**, **Kopieren** oder **Nur Metadaten**. Lass **Herkunft im Ziel dokumentieren** aktiviert. Dadurch steht später in `.claude-project-origin.json`, von welchem Computer, Benutzer und Pfad das Projekt kam, wann und mit welcher Variante es übertragen wurde und ob die Nachprüfung erfolgreich war.
 
@@ -67,7 +69,7 @@ Das Tool kontrolliert für jedes ausgewählte Projekt:
 - typische Projektmerkmale und Projekttypen
 - Dateianzahl und Gesamtgröße
 - freier Speicherplatz am Ziel
-- Zielordner existiert noch nicht
+- Zielordner ist frei oder wurde bei einem Namenskonflikt ausdrücklich zur Übernahme bestätigt
 
 Erkannte Merkmale umfassen unter anderem `.git`, `CLAUDE.md`, `.claude`, `package.json`, `pyproject.toml`, `requirements.txt`, `.sln`, `.csproj`, `pom.xml`, Gradle-Dateien, `go.mod`, `Cargo.toml`, `composer.json`, `Gemfile`, Dockerfile und Compose-Dateien.
 
@@ -150,7 +152,7 @@ Claude Code muss für das Projekt bereits Sitzungsmetadaten unter `%USERPROFILE%
 
 - Claude Code vor der Migration schließen.
 - Backup aktiviert lassen.
-- Bestehende Zielordner werden nicht überschrieben oder zusammengeführt.
+- Bestehende Zielordner werden nur nach ausdrücklicher Bestätigung verwendet; vorhandene Dateien werden nicht überschrieben.
 - Bei Netzlaufwerken kann die Speicherplatzprüfung eingeschränkt sein.
 - Mehrere Projekte werden nacheinander und nicht als eine gemeinsame Transaktion verarbeitet.
 - Vor wichtigen Migrationen zuerst mit einem entbehrlichen Testprojekt prüfen.

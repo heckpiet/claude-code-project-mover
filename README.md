@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.6.0**
+Aktuelle Version: **1.7.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -184,11 +184,11 @@ Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselb
 
 Beim Zielpfad muss der **vollständige neue Projektordner** angegeben werden, nicht nur ein übergeordneter Sammelordner. Kann das interaktive CLI dort keine typische Projektdatei erkennen, erklärt es die Warnung und lässt unmittelbar einen anderen Pfad eingeben oder die Auswahl bewusst bestätigen. Automatisierte Aufrufe bleiben streng und benötigen in diesem Fall weiterhin `-Force`.
 
-Erkennt das interaktive CLI, dass eine Sitzungsgruppe bisher keinen eigenen Projektordner besitzt, fragt es standardmäßig nach der Anlage eines neuen Ordners. In diesem Modus wird ein vorhandener Ziel-Sammelordner plus ein neuer Projektname eingegeben. Der allgemeine Quellordner wird nicht verschoben. Das Skript legt den neuen Ordner an, aktualisiert sämtliche gespeicherten Pfadvarianten in den Claude-Metadaten und prüft anschließend Ordner, Metadatenverzeichnis, JSON/JSONL-Daten und `cwd`-Verweise.
+Erkennt das interaktive CLI, dass eine Sitzungsgruppe bisher keinen eigenen Projektordner besitzt, fragt es standardmäßig nach der Anlage eines neuen Ordners. Neben bekannten allgemeinen Pfaden erkennt es auch markerlose Sammelordner, wenn darunter weitere Claude-Projekte liegen. In diesem Modus wird ein vorhandener Ziel-Sammelordner plus ein vorgeschlagener Projektname eingegeben. Der allgemeine Quellordner wird nicht verschoben. Das Skript legt den neuen Ordner an, aktualisiert sämtliche gespeicherten Pfadvarianten in den Claude-Metadaten und prüft anschließend Ordner, Metadatenverzeichnis, JSON/JSONL-Daten und `cwd`-Verweise.
 
 ### Intelligente Ordnernamenvorschläge
 
-Projektübersicht und Auswahldialog zeigen letzte Sitzung, Sitzungsanzahl, KI-Titel oder Sitzungsinhalt, bisherigen Pfad, Ordnerstatus und Zielordner-Vorschlag. Der Vorschlag verwendet bis zu acht aussagekräftige Wörter, entfernt einleitende Füllwörter sowie ungültige Dateinamenzeichen und begrenzt die Länge. Fehlt verwertbarer Inhalt, werden Zeitstempel und ein gekürzter Sitzungsbezeichner verwendet. Vor der Anlage kann der Name immer bearbeitet werden.
+Projektübersicht und Auswahldialog zeigen letzte Sitzung, Sitzungsanzahl, KI-Titel oder Sitzungsinhalt, bisherigen Pfad, Ordnerstatus und Zielordner-Vorschlag. Der Vorschlag verwendet bis zu acht aussagekräftige Wörter, entfernt einleitende Füllwörter sowie ungültige Dateinamenzeichen und begrenzt die Länge. Fehlt verwertbarer Inhalt, werden Zeitstempel und ein gekürzter Sitzungsbezeichner verwendet. Vor der Anlage kann der Name immer bearbeitet werden. Existiert der vorgeschlagene Unterordner bereits, kann er bewusst verwendet, ein anderer Name eingegeben oder der Vorgang abgebrochen werden. Beim Verwenden bleiben vorhandene Dateien erhalten; es werden nur sichere Session-Artefakte, das portable Bundle und die Herkunftsinformation ergänzt.
 
 ### Projektübersicht ohne Migration
 
@@ -225,6 +225,7 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | `-NewPath` | Neuer absoluter Projektpfad |
 | `-CreateProjectFolder` | Behandelt `-NewPath` als Ziel-Sammelordner und legt einen eigenen Projektordner an |
 | `-ProjectFolderName` | Name des mit `-CreateProjectFolder` anzulegenden Projektordners |
+| `-AdoptExistingProjectFolder` | Verwendet einen bereits vorhandenen Ziel-Projektordner, ohne dessen Inhalt zu überschreiben |
 | `-TransferMode` | Dokumentierte Übertragungsart: `Move`, `Copy`, `MetadataOnly` oder `CreateFolder` |
 | `-NoOriginMetadata` | Deaktiviert die Herkunftsdatei im Ziel bewusst |
 | `-NoSessionBundle` | Deaktiviert die portable Kopie von Session-Metadaten und Claude-Hilfsdaten |
