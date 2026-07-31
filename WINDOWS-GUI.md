@@ -1,175 +1,45 @@
-# Native Windows-Oberfläche
+# Windows GUI guide
 
-`claude-project-mover-gui.ps1` ist die interaktive Windows-Oberfläche zum sicheren Verschieben eines oder mehrerer Claude-Code-Projekte.
+The native GUI is the recommended Windows entry point. Start the complete release with `Start-ClaudeProjectMover.cmd`; the starter uses PowerShell 7 when available and Windows PowerShell 5.1 otherwise.
 
-Die Windows-Umsetzung ist der Schwerpunkt dieses Repositorys. Oberfläche, PowerShell-Engine, CMD-Starter, deutsche Dokumentation und CI-Prüfungen werden gemeinsam für Windows 10/11 sowie Windows PowerShell 5.1 und PowerShell 7 gepflegt.
+## Language
 
-Die Oberfläche verwendet UTF-8 mit BOM, damit deutsche Texte auch unter Windows PowerShell 5.1 korrekt dargestellt werden.
-
-## Empfohlener Start
-
-Starte im entpackten Projektordner:
-
-```text
-Start-ClaudeProjectMover.cmd
-```
-
-Am einfachsten ist ein Doppelklick im Windows Explorer. Alternativ:
+The GUI supports English and German. `-Language Auto` follows the current Windows UI culture: German cultures receive German, all others English.
 
 ```powershell
-.\Start-ClaudeProjectMover.cmd
+.\claude-project-mover-gui.ps1 -Language en
+.\claude-project-mover-gui.ps1 -Language de
 ```
 
-Direkter Start über PowerShell 7:
+The environment variable `CLAUDE_MOVER_LANGUAGE` works with the CMD starter and both scripts.
 
-```powershell
-pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1
-```
+## Project overview
 
-## Interaktiver Ablauf
+Projects are sorted by latest session. The table includes validation status, timestamp, session count, folder status, suggested folder, description, source path, discovered session files, transfer type, file count, and size.
 
-1. Claude Code vollständig schließen.
-2. Zeitstempel, Sitzungsanzahl und Kurzbeschreibung der gefundenen Projekte prüfen.
-3. Ein oder mehrere Quellprojekte über die Checkboxen an- oder abwählen.
-4. Auf **Quellen prüfen** klicken.
-5. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
-6. Einen gemeinsamen Zielordner auswählen.
-7. **Verschieben**, **Kopieren** oder **Nur Metadaten** auswählen.
-8. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
-9. **Herkunft im Ziel dokumentieren** aktiviert lassen.
-10. **Session-Paket sichern** und **Sichere Session-Dateien kopieren** aktiviert lassen.
-10. Auf **Ausführen** klicken und den geprüften Plan bestätigen.
+Select one or more rows and use **Validate sources** before running a transfer. Blocking errors prevent execution; warnings remain visible for review.
 
-Beim Klick auf **Ausführen** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verarbeitet.
+## Destination behavior
 
-Nach Auswahl des gemeinsamen Zielordners durchsucht die GUI vorhandene Herkunftsdateien und Session-Pakete. Wurde dasselbe Quellprojekt oder eine identische Session dort bereits übertragen, zeigt sie den gefundenen Projektordner an und verlangt eine ausdrückliche Bestätigung oder bricht ab.
+Choose a common destination parent. For normal projects, the source folder name is retained. If a session has no dedicated project folder, the GUI proposes a safe name based on its title or first useful message. Name conflicts require an explicit choice.
 
-## Was in der Quelle geprüft wird
+Available file operations:
 
-Für jedes ausgewählte Projekt kontrolliert das Tool:
+- **Move** transfers project files and metadata.
+- **Copy** copies project files and transfers metadata.
+- **Metadata only** expects the project files to exist at the destination already.
 
-- ob der Quellordner vorhanden und vollständig lesbar ist
-- ob der Ordner Dateien enthält
-- ob gültige Claude-Code-JSONL-Sitzungsdaten vorhanden sind
-- ob die in Claude Code gespeicherten `cwd`-Pfade zum Quellordner passen
-- ob beschädigte JSONL-Datensätze vorhanden sind
-- welche typischen Projektdateien und Projekttypen erkannt werden
-- wie viele Dateien vorhanden sind und wie groß das Projekt insgesamt ist
+## Recommended options
 
-Erkannte Projektmerkmale umfassen unter anderem:
+- **Back up Claude metadata as ZIP** provides a recovery point.
+- **Document origin at destination** writes `.claude-project-origin.json`.
+- **Preserve session bundle** writes `.claude-session-bundle`.
+- **Copy safe session files** includes safe project-relative artifacts found in session activity.
 
-- `.git`, `CLAUDE.md` und `.claude`
-- `package.json` und Lock-Dateien für Node.js
-- `pyproject.toml`, `requirements.txt` und `Pipfile` für Python
-- `.sln`, `.csproj` und `.fsproj` für .NET
-- `pom.xml` und Gradle-Dateien für Java
-- `go.mod`, `Cargo.toml`, `composer.json` und `Gemfile`
-- Dockerfile- und Compose-Dateien
+The tool excludes sensitive and machine-bound paths by design.
 
-Fehlen typische Projektmerkmale, wird eine Warnung angezeigt. Ein leerer, nicht lesbarer oder nicht zu den Claude-Sitzungen passender Ordner wird als Fehler blockiert.
+## Verification and recovery
 
-## Prüfung nach dem Verschieben
+The GUI checks source readability, project markers, JSONL validity, available space, target contents, copied file hashes, updated `cwd` values, portable bundle contents, and provenance metadata. Metadata changes use a validated staging directory and rollback path.
 
-Vor der Bewegung erstellt das Tool intern ein Manifest mit:
-
-- relativem Dateipfad
-- Dateigröße
-- Dateianzahl
-- Gesamtgröße
-
-Nach dem Verschieben wird der Zielordner erneut geprüft. Der Vorgang gilt nur dann als erfolgreich, wenn:
-
-- keine Datei fehlt
-- keine Dateigröße abweicht
-- Dateianzahl und Gesamtgröße mit der Quelle übereinstimmen
-
-Schlägt diese Prüfung oder die anschließende Claude-Metadatenmigration fehl, versucht das Tool, das aktuell betroffene Projekt an seinen ursprünglichen Ort zurückzuschieben.
-
-## Statusanzeige
-
-| Status | Bedeutung |
-| --- | --- |
-| `NICHT GEPRÜFT` | Für dieses Projekt wurde noch keine Prüfung durchgeführt. |
-| `OK` | Quelle, Claude-Metadaten und Projektdateien sind plausibel. |
-| `WARNUNG` | Quelle ist verwendbar, aber es fehlen typische Projektmerkmale oder es gibt einen nicht kritischen Hinweis. |
-| `FEHLER` | Das Projekt wird aus Sicherheitsgründen nicht verschoben. |
-
-## Mehrere Projekte
-
-Mehrere Projekte können gleichzeitig über Checkboxen ausgewählt werden. Die Übersicht ist nach der letzten Claude-Code-Sitzung sortiert und zeigt:
-
-- Datum und Uhrzeit der letzten Sitzung
-- Anzahl der gespeicherten Sitzungen
-- den von Claude erzeugten Titel oder ersatzweise die erste sinnvolle Benutzernachricht
-- den vollständigen Projektpfad
-
-Mit **Alle auswählen** und **Auswahl löschen** lässt sich die Auswahl schnell umschalten. Die ausgewählten Projekte werden nacheinander unterhalb des gewählten gemeinsamen Zielordners abgelegt.
-
-Die GUI und die PowerShell-Kommandozeile verwenden dasselbe Inventarmodul. Zeitstempel, Sitzungsanzahl und Kurzbeschreibung werden daher in beiden Oberflächen nach denselben Regeln ermittelt.
-
-Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen gemeinsamen Sammelordner und erzeugt darin je Projekt einen Unterordner. Die direkte PowerShell-Kommandozeile erwartet bereits den vollständigen Ziel-Projektordner und führt bei unklaren Projektmerkmalen durch eine erneute Auswahl.
-
-### Sitzungsgruppe ohne eigenen Projektordner
-
-Fehlen im bisherigen Pfad typische Projektmerkmale und enthält er weitere bekannte Claude-Projekte, kennzeichnet die GUI ihn als **SAMMELORDNER**. Sie fragt dann, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
-
-Die Projektliste zeigt dafür zusätzlich **Ordnerstatus** und **Zielordner-Vorschlag**. Der Namensdialog ist mit dem Vorschlag aus KI-Titel oder erstem sinnvollen Sitzungsinhalt vorausgefüllt. Zeitstempel, Sitzungsanzahl, Beschreibung, Pfad und Vorschlag bleiben gleichzeitig sichtbar, damit ähnliche Sitzungsgruppen leichter unterschieden werden können.
-
-Existiert der vorgeschlagene Ziel-Unterordner bereits, bietet die GUI drei sichere Wege an: vorhandenen Ordner verwenden, einen anderen Namen wählen oder abbrechen. Beim Verwenden wird der Sammelordner nicht verschoben und der bestehende Zielinhalt nicht gelöscht; Session-Dateien, Bundle und Herkunftsmetadaten werden kontrolliert ergänzt.
-
-## Herkunftsdatei im Ziel
-
-Die standardmäßig aktivierte Option **Herkunft im Ziel dokumentieren** erzeugt `.claude-project-origin.json`. Sie enthält Computer, Benutzer, Quellpfad, Zeitpunkt, Übertragungsart, Tool-Version, technische Projekt- und Sitzungszählwerte sowie das Ergebnis der Nachprüfung. Bei späteren Übertragungen wird die Historie ergänzt. Sitzungsinhalte, Zugangsdaten, IP-Adressen, Hardware-IDs und Windows-SIDs werden nicht gespeichert.
-
-## Session-Paket und erzeugte Dateien
-
-Die GUI zeigt für jedes Projekt die Anzahl sicherer Session-Bereiche und sensibler Pfade. **Session-Paket sichern** erstellt `.claude-session-bundle` mit JSONL, Memory, Tool-Ergebnissen, File-History, Scratchpad und Tasks. **Sichere Session-Dateien kopieren** übernimmt bei ordnerlosen Sessions erkannte Arbeitsbereiche in den neuen Projektordner. `.ssh`, `.claude`, `.codex`, `AppData`, versteckte und externe Pfade werden nicht automatisch kopiert.
-
-Das Bundle enthält `Restore-ClaudeSession.ps1`. Damit kann die Session nach dem Kopieren des gesamten Projektordners auf einem anderen Windows-Rechner in dessen Claude Home installiert werden.
-
-Beispiel:
-
-```text
-C:\Users\Peter\Code\Projekt-A
-C:\Users\Peter\Code\Projekt-B
-```
-
-Zielordner:
-
-```text
-D:\Development
-```
-
-Ergebnis:
-
-```text
-D:\Development\Projekt-A
-D:\Development\Projekt-B
-```
-
-Vor dem Start prüft das Tool zusätzlich, ob bereits gleichnamige Zielordner existieren und ob auf dem Ziellaufwerk genügend freier Speicher vorhanden ist.
-
-## Nur Claude-Metadaten aktualisieren
-
-Wähle bei **Übertragungsart** den Eintrag **Nur Metadaten**, wenn die Projektordner bereits manuell an das Ziel verschoben wurden. Die erwarteten Zielordner müssen dann bereits existieren.
-
-Direkter Start in diesem Modus:
-
-```powershell
-pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -NoProjectMove
-```
-
-## Eigene Claude-Konfiguration
-
-```powershell
-pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gui.ps1 -ClaudeConfigDirectory 'D:\ClaudeConfig'
-```
-
-## Einschränkungen
-
-- Die Oberfläche benötigt Windows und Windows Forms.
-- Alle ausgewählten Projekte werden unter einem gemeinsamen Zielordner verarbeitet.
-- Bestehende Zielordner werden nur nach ausdrücklicher Bestätigung übernommen; vorhandene Dateien werden dabei nicht überschrieben.
-- Die Projekte werden nacheinander verarbeitet. Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
-- Bei Netzlaufwerken kann die Ermittlung des freien Speicherplatzes technisch eingeschränkt sein.
-- Die Dateiprüfung vergleicht Pfade, Anzahl und Dateigrößen. Sie berechnet bewusst nicht für jede Datei einen kryptografischen Hash, da dies bei großen Projekten den Ablauf erheblich verlangsamen würde.
+If a transfer fails, read the displayed error, leave Claude Code closed, and inspect the backup/rollback information. The bundle includes `Restore-ClaudeSession.ps1` for restoring portable session data on another Windows installation.

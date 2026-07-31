@@ -82,7 +82,7 @@ jobs:
             throw "Start-ClaudeProjectMover.cmd does not contain version '$version'."
           }
           $readme = Get-Content -LiteralPath README.md -Raw
-          if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
+          if ($readme -notmatch "(?m)^Current version: \*\*$([regex]::Escape($version))\*\*\s*$") {
             throw "README.md does not show current version '$version'."
           }
 
@@ -126,6 +126,10 @@ jobs:
       - name: Test GUI version source
         shell: powershell
         run: .\tests\Test-GuiVersionSource.ps1
+
+      - name: Test localization
+        shell: powershell
+        run: .\tests\Test-Localization.ps1
 
   powershell-7:
     name: PowerShell 7
@@ -181,7 +185,7 @@ jobs:
             throw "Start-ClaudeProjectMover.cmd does not contain version '$version'."
           }
           $readme = Get-Content -LiteralPath README.md -Raw
-          if ($readme -notmatch "(?m)^Aktuelle Version: \*\*$([regex]::Escape($version))\*\*\s*$") {
+          if ($readme -notmatch "(?m)^Current version: \*\*$([regex]::Escape($version))\*\*\s*$") {
             throw "README.md does not show current version '$version'."
           }
 
@@ -225,3 +229,7 @@ jobs:
       - name: Test GUI version source
         shell: pwsh
         run: .\tests\Test-GuiVersionSource.ps1
+
+      - name: Test localization
+        shell: pwsh
+        run: .\tests\Test-Localization.ps1

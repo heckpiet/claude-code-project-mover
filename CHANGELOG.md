@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [2.0.0] - 2026-07-31
+
+### Added
+
+- Shared English/German localization for the Windows CLI and GUI with automatic UI-culture detection
+- Manual `-Language en|de` and `CLAUDE_MOVER_LANGUAGE` overrides
+- Language-aware Bash overview and primary prompts
+- Localization module validation and bilingual regression coverage
+
+### Changed
+
+- All repository documentation, starter help, GitHub-facing copy, and release guidance are now English
+- Internal transfer choices are independent from their translated GUI labels
+- The complete module set is now required by the Windows starter
+
 ## [1.9.0] - 2026-07-31
 
 ### Added
