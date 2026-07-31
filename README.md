@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.5.0**
+Aktuelle Version: **1.5.1**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -240,6 +240,8 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 Nach einer erfolgreichen Migration liegt im Zielprojekt standardmäßig `.claude-project-origin.json`. Die Datei bleibt beim späteren Kopieren oder Verschieben im Projekt und wird bei weiteren Läufen um einen neuen Eintrag ergänzt.
 
 Gespeichert werden eine dauerhafte Projekt-ID, Quell- und Zielpfad, Computer- und Benutzername, optionale Windows-Domäne, Betriebssystem, UTC- und lokale Zeit, Zeitzone, Übertragungsart, Tool-Version, Projektmerkmale, Dateianzahl und Größe, Sitzungszählwerte, letzte Aktivität sowie das Ergebnis der Zielordner-, Metadaten- und `cwd`-Nachprüfung.
+
+Die Datei wird UTF-8-kodiert geschrieben und auch unter Windows PowerShell 5.1 UTF-8-sicher gelesen. Zielpfade und vorgeschlagene Ordnernamen dürfen daher Umlaute und andere Unicode-Zeichen enthalten.
 
 Nicht gespeichert werden Sitzungsinhalte, IP-Adressen, Hardware-IDs, Windows-SID oder Zugangsdaten. Wer Computer- oder Benutzernamen nicht im Ziel ablegen möchte, kann `-NoOriginMetadata` verwenden oder die entsprechende GUI-Option deaktivieren.
 

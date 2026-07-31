@@ -141,7 +141,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.5.0'
+$ScriptVersion = '1.5.1'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -836,7 +836,7 @@ function Write-ProjectOriginManifest {
     $manifestPath = Join-Path $DestinationPath '.claude-project-origin.json'
     $existing = $null
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        try { $existing = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { }
+        try { $existing = [System.IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json -ErrorAction Stop } catch { }
     }
     $projectId = if ($null -ne $existing -and $existing.PSObject.Properties.Name -contains 'projectId') {
         [string]$existing.projectId
@@ -903,12 +903,19 @@ function Write-ProjectOriginManifest {
     }
     $temporaryPath = $manifestPath + '.tmp'
     $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($temporaryPath, ($manifest | ConvertTo-Json -Depth 8), $utf8WithoutBom)
-    $validated = Get-Content -LiteralPath $temporaryPath -Raw | ConvertFrom-Json -ErrorAction Stop
-    if ($validated.currentPath -ne $DestinationPath -or @($validated.transfers).Count -eq 0) {
-        throw 'Herkunftsmetadaten konnten nicht validiert werden.'
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, ($manifest | ConvertTo-Json -Depth 8), $utf8WithoutBom)
+        $validated = [System.IO.File]::ReadAllText($temporaryPath) | ConvertFrom-Json -ErrorAction Stop
+        if ([string]$validated.currentPath -ne $DestinationPath -or @($validated.transfers).Count -eq 0) {
+            throw 'Herkunftsmetadaten konnten nicht validiert werden.'
+        }
+        Move-Item -LiteralPath $temporaryPath -Destination $manifestPath -Force
     }
-    Move-Item -LiteralPath $temporaryPath -Destination $manifestPath -Force
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
+            Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        }
+    }
     return $manifestPath
 }
 

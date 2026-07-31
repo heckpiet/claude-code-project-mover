@@ -8,7 +8,7 @@ $configRoot = Join-Path $testRoot '.claude'
 $projectsRoot = Join-Path $configRoot 'projects'
 $generalSource = Join-Path $testRoot 'general-source'
 $targetRoot = Join-Path $testRoot 'target'
-$folderName = 'dedicated-session-project'
+$folderName = 'server-ssh-zugriff-{0}berpr{0}fen' -f [char]0x00FC
 $targetProject = Join-Path $targetRoot $folderName
 $oldConfig = $env:CLAUDE_CONFIG_DIR
 
@@ -38,7 +38,7 @@ try {
 
     $originPath = Join-Path $targetProject '.claude-project-origin.json'
     if (-not (Test-Path -LiteralPath $originPath -PathType Leaf)) { throw 'Origin metadata manifest was not created.' }
-    $origin = Get-Content -LiteralPath $originPath -Raw | ConvertFrom-Json
+    $origin = [System.IO.File]::ReadAllText($originPath) | ConvertFrom-Json
     if ($origin.schemaVersion -ne 1 -or [string]::IsNullOrWhiteSpace([string]$origin.projectId)) { throw 'Origin metadata schema or project ID is invalid.' }
     if ($origin.currentPath -ne $targetProject -or @($origin.transfers).Count -ne 1) { throw 'Origin metadata path or transfer history is invalid.' }
     $transfer = @($origin.transfers)[0]
@@ -51,7 +51,7 @@ try {
     & $mover -ProjectPath $targetProject -NewPath $secondTarget -TransferMode Move -Yes -SkipSpaceCheck -Force
 
     $secondOriginPath = Join-Path $secondTarget '.claude-project-origin.json'
-    $secondOrigin = Get-Content -LiteralPath $secondOriginPath -Raw | ConvertFrom-Json
+    $secondOrigin = [System.IO.File]::ReadAllText($secondOriginPath) | ConvertFrom-Json
     if ([string]$secondOrigin.projectId -ne $firstProjectId) { throw 'Project ID was not preserved across transfers.' }
     if ($secondOrigin.currentPath -ne $secondTarget -or @($secondOrigin.transfers).Count -ne 2) { throw 'Transfer history was not appended.' }
     $secondTransfer = @($secondOrigin.transfers)[1]
