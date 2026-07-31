@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set "SCRIPT_VERSION=1.5.1"
+set "SCRIPT_VERSION=1.6.0"
 rem ================================================================
 rem  Claude Code Project Mover - Windows Starter
 rem ================================================================

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.5.1"
+SCRIPT_VERSION="1.6.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -333,25 +333,47 @@ move_project() {
         return 1
     fi
 
-    # Escape special characters for sed
-    local old_escaped=$(printf '%s\n' "$old_path" | sed 's/[[\.*^$()+?{|]/\\&/g')
-    local new_escaped=$(printf '%s\n' "$new_path" | sed 's/[&/\]/\\&/g')
-
-    echo -e "${YELLOW}Replacing paths in files...${NC}" >&2
-
-    # Detect sed flavor once (GNU sed: -i; BSD sed: -i '')
-    if sed --version 2>&1 | grep -q GNU; then
-        sed_inplace=(sed -i)
-    else
-        sed_inplace=(sed -i '')
+    echo -e "${YELLOW}Updating cwd fields in JSONL metadata...${NC}" >&2
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo -e "${RED}Error: Python 3 is required for safe JSONL path updates.${NC}" >&2
+        return 1
     fi
+    python3 - "$old_full_path" "$old_path" "$new_path" <<'PY'
+import json
+import os
+import sys
 
-    # Replace paths in all files
-    for file in "$old_full_path"/*; do
-        if [[ -f "$file" ]]; then
-            "${sed_inplace[@]}" "s|$old_escaped|$new_escaped|g" "$file"
-        fi
-    done
+root, old_path, new_path = sys.argv[1:]
+updated = 0
+for current_root, _, names in os.walk(root):
+    for name in names:
+        if not name.endswith(".jsonl"):
+            continue
+        path = os.path.join(current_root, name)
+        output = []
+        changed = False
+        with open(path, "r", encoding="utf-8", errors="strict") as stream:
+            for raw in stream:
+                try:
+                    record = json.loads(raw)
+                except (TypeError, ValueError):
+                    output.append(raw)
+                    continue
+                if record.get("cwd") == old_path:
+                    record["cwd"] = new_path
+                    changed = True
+                    output.append(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+                else:
+                    output.append(raw)
+        if changed:
+            temporary = path + ".tmp"
+            with open(temporary, "w", encoding="utf-8", newline="") as stream:
+                stream.writelines(output)
+            os.replace(temporary, path)
+            updated += 1
+if updated == 0:
+    raise SystemExit("No JSONL cwd field referenced the old project path.")
+PY
 
     echo -e "${YELLOW}Renaming folder...${NC}" >&2
 
@@ -359,6 +381,110 @@ move_project() {
     mv "$old_full_path" "$new_full_path"
 
     echo "$new_full_path"
+}
+
+create_session_bundle() {
+    local metadata_path="$1" old_path="$2" new_path="$3" old_folder="$4"
+    python3 - "$metadata_path" "$CLAUDE_CONFIG_DIR" "$old_path" "$new_path" "$old_folder" <<'PY'
+import datetime
+import json
+import os
+import pathlib
+import shutil
+import sys
+import tempfile
+
+metadata, config, old_path, new_path, old_folder = sys.argv[1:]
+destination = pathlib.Path(new_path)
+bundle = destination / ".claude-session-bundle"
+temporary = destination / ".claude-session-bundle.tmp"
+if temporary.exists():
+    shutil.rmtree(temporary)
+if bundle.exists():
+    shutil.copytree(bundle, temporary)
+else:
+    temporary.mkdir(parents=True)
+metadata_target = temporary / "metadata"
+if metadata_target.exists():
+    shutil.rmtree(metadata_target)
+shutil.copytree(metadata, metadata_target)
+
+session_ids = sorted({
+    pathlib.Path(path).stem
+    for path in pathlib.Path(metadata).rglob("*.jsonl")
+    if len(pathlib.Path(path).stem) == 36
+})
+for session_id in session_ids:
+    history = pathlib.Path(config) / "file-history" / session_id
+    if history.is_dir():
+        target = temporary / "file-history" / session_id
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(history, target, dirs_exist_ok=True)
+    runtime = pathlib.Path(tempfile.gettempdir()) / "claude" / old_folder / session_id
+    if runtime.is_dir():
+        target = temporary / "runtime" / session_id
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(runtime, target, dirs_exist_ok=True)
+
+safe_roots = set()
+sensitive = set()
+source = pathlib.Path(old_path)
+for jsonl in pathlib.Path(metadata).rglob("*.jsonl"):
+    with jsonl.open("r", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            try:
+                record = json.loads(line)
+            except (TypeError, ValueError):
+                continue
+            message = record.get("message")
+            content = message.get("content", []) if isinstance(message, dict) else []
+            for part in content if isinstance(content, list) else []:
+                if not isinstance(part, dict) or part.get("type") != "tool_use" or part.get("name") not in ("Write", "Edit", "NotebookEdit"):
+                    continue
+                data = part.get("input", {})
+                value = data.get("file_path") or data.get("notebook_path") or data.get("path")
+                if not isinstance(value, str):
+                    continue
+                path = pathlib.Path(value)
+                if not path.is_absolute():
+                    path = source / path
+                try:
+                    relative = path.resolve().relative_to(source.resolve())
+                except (OSError, ValueError):
+                    continue
+                first = relative.parts[0]
+                if first in (".ssh", ".claude", ".codex", "AppData") or first.startswith("."):
+                    sensitive.add(str(path))
+                elif (source / first).exists():
+                    safe_roots.add(first)
+for first in sorted(safe_roots):
+    source_item = source / first
+    target_item = destination / first
+    if not target_item.exists():
+        if source_item.is_dir():
+            shutil.copytree(source_item, target_item)
+        else:
+            shutil.copy2(source_item, target_item)
+
+manifest = {
+    "schemaVersion": 1,
+    "createdAtUtc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "sourcePath": old_path,
+    "currentPath": new_path,
+    "sessions": session_ids,
+    "copiedArtifacts": sorted(safe_roots),
+    "skippedSensitivePaths": sorted(sensitive),
+}
+with (temporary / "manifest.json").open("w", encoding="utf-8") as stream:
+    json.dump(manifest, stream, ensure_ascii=False, indent=2)
+if bundle.exists():
+    shutil.rmtree(bundle)
+os.replace(temporary, bundle)
+print(bundle)
+PY
+    if [[ -f "$SCRIPT_DIR/scripts/restore-claude-session.sh" ]]; then
+        cp "$SCRIPT_DIR/scripts/restore-claude-session.sh" "$new_path/.claude-session-bundle/restore-claude-session.sh"
+    fi
 }
 
 # Main script
@@ -540,7 +666,7 @@ main() {
     fi
 
     # Perform move
-    if ! move_project "$selected_folder" "$new_path" > /dev/null; then
+    if ! new_metadata_path=$(move_project "$selected_folder" "$new_path"); then
         if [[ "$create_project_folder" == true ]]; then
             rmdir "$new_path" 2>/dev/null || true
         fi
@@ -550,6 +676,8 @@ main() {
     if [[ "$create_project_folder" == true ]]; then transfer_mode="create-folder"; fi
     write_origin_manifest "$selected_path" "$new_path" "$transfer_mode" "$selected_count"
     echo -e "${GREEN}Origin metadata: $new_path/.claude-project-origin.json${NC}"
+    session_bundle=$(create_session_bundle "$new_metadata_path" "$selected_path" "$new_path" "$selected_folder")
+    echo -e "${GREEN}Portable session bundle: $session_bundle${NC}"
 
     echo -e "${GREEN}=====================================${NC}"
     echo -e "${GREEN}  Project updated successfully!${NC}"

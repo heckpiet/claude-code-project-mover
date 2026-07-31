@@ -42,7 +42,7 @@ Der Starter verwendet PowerShell 7, sofern vorhanden, und ansonsten Windows Powe
 3. Status, Projekttyp, Dateianzahl, Größe und Hinweise kontrollieren.
 4. Einen gemeinsamen Zielordner auswählen.
 5. **Verschieben**, **Kopieren** oder **Nur Metadaten** auswählen.
-6. **Claude-Metadaten als ZIP sichern** und **Herkunft im Ziel dokumentieren** aktiviert lassen.
+6. **Claude-Metadaten als ZIP sichern**, **Herkunft im Ziel dokumentieren**, **Session-Paket sichern** und **Sichere Session-Dateien kopieren** aktiviert lassen.
 7. Auf **Ausführen** klicken und den Plan bestätigen.
 
 Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
@@ -50,6 +50,8 @@ Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausge
 Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner, fragt die GUI nach einem neuen Ordnernamen. Sie legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quellordner wie das Benutzerprofil wird niemals vollständig verschoben.
 
 Wähle je nach gewünschtem Ablauf **Verschieben**, **Kopieren** oder **Nur Metadaten**. Lass **Herkunft im Ziel dokumentieren** aktiviert. Dadurch steht später in `.claude-project-origin.json`, von welchem Computer, Benutzer und Pfad das Projekt kam, wann und mit welcher Variante es übertragen wurde und ob die Nachprüfung erfolgreich war.
+
+Bei Sessions ohne eigenen Projektordner zeigt die Übersicht zusätzlich sichere und sensible Session-Dateien. Sichere Bereiche werden in den neuen Projektordner kopiert. Claude-Hilfsdaten und Sitzungsverlauf landen in `.claude-session-bundle`; sensible oder systemgebundene Pfade werden nur angezeigt.
 
 Zur leichteren Auswahl zeigt die Übersicht Zeitstempel, Sitzungsanzahl, Inhalt, bisherigen Pfad, Ordnerstatus und einen automatisch erzeugten Zielordner-Vorschlag. Der Vorschlag kann vor dem Anlegen geändert werden.
 

@@ -14,12 +14,13 @@ Alternativ:
 2. Ein oder mehrere Projekte auswählen.
 3. Auf "Quellen prüfen" klicken und das Prüfergebnis kontrollieren.
 4. Einen gemeinsamen Zielordner auswählen.
-5. Übertragungsart wählen, Backup und Herkunftsdokumentation aktiviert lassen und "Ausführen" anklicken.
+5. Übertragungsart wählen, Backup, Herkunftsdokumentation und Session-Paket aktiviert lassen.
+6. Sichere Session-Dateien prüfen und "Ausführen" anklicken.
 
 .PRÜFUNG
 Das Tool gleicht den Quellpfad mit Claude-Code-Sitzungsdaten ab, sucht typische
-Projektdateien, prüft Lesbarkeit, Dateianzahl und Größe und verifiziert nach dem
-Verschieben, dass alle erfassten Dateien vollständig am Ziel vorhanden sind.
+Projektdateien und Session-Artefakte, prüft Lesbarkeit, Dateianzahl und Größe,
+sichert Claude-Hilfsdaten portabel und verifiziert das Ziel.
 #>
 
 [CmdletBinding()]
@@ -33,7 +34,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.5.1'
+$ScriptVersion = '1.6.0'
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
 }
@@ -521,6 +522,7 @@ $list.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
 [void]$list.Columns.Add('Zielordner-Vorschlag', 210)
 [void]$list.Columns.Add('Beschreibung', 285)
 [void]$list.Columns.Add('Quellprojekt', 300)
+[void]$list.Columns.Add('Session-Dateien', 135)
 [void]$list.Columns.Add('Typ', 120)
 [void]$list.Columns.Add('Dateien', 70)
 [void]$list.Columns.Add('Größe', 90)
@@ -532,10 +534,11 @@ foreach ($project in $projects) {
     [void]$item.SubItems.Add($(if ($project.NeedsDedicatedFolder) { $project.SuggestedFolderName } else { '-' }))
     [void]$item.SubItems.Add($project.Description)
     [void]$item.SubItems.Add($project.SourcePath)
+    [void]$item.SubItems.Add(('{0} sicher / {1} sensibel' -f $project.SafeArtifactCount, $project.SensitiveArtifactCount))
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
-    $item.ToolTipText = "Beschreibung: $($project.Description)`r`nLetzte Sitzung: $($project.LastSession.ToString('dd.MM.yyyy HH:mm'))`r`nSessions: $($project.SessionCount)`r`nOrdnerstatus: $($project.FolderStatus)`r`nVorschlag: $($project.SuggestedFolderName)`r`nQuelle: $($project.SourcePath)"
+    $item.ToolTipText = "Beschreibung: $($project.Description)`r`nLetzte Sitzung: $($project.LastSession.ToString('dd.MM.yyyy HH:mm'))`r`nSessions: $($project.SessionCount)`r`nSichere Session-Bereiche: $($project.SafeArtifactCount)`r`nSensible Pfade: $($project.SensitiveArtifactCount)`r`nOrdnerstatus: $($project.FolderStatus)`r`nVorschlag: $($project.SuggestedFolderName)`r`nQuelle: $($project.SourcePath)"
     $item.Tag = $project
     [void]$list.Items.Add($item)
 }
@@ -644,6 +647,20 @@ $originMetadata.AutoSize = $true
 $originMetadata.Location = New-Object System.Drawing.Point(535, 654)
 $form.Controls.Add($originMetadata)
 
+$sessionBundle = New-Object System.Windows.Forms.CheckBox
+$sessionBundle.Text = 'Session-Paket sichern'
+$sessionBundle.Checked = $true
+$sessionBundle.AutoSize = $true
+$sessionBundle.Location = New-Object System.Drawing.Point(760, 654)
+$form.Controls.Add($sessionBundle)
+
+$sessionArtifacts = New-Object System.Windows.Forms.CheckBox
+$sessionArtifacts.Text = 'Sichere Session-Dateien kopieren'
+$sessionArtifacts.Checked = $true
+$sessionArtifacts.AutoSize = $true
+$sessionArtifacts.Location = New-Object System.Drawing.Point(930, 654)
+$form.Controls.Add($sessionArtifacts)
+
 $status = New-Object System.Windows.Forms.Label
 $status.Text = 'Bereit'
 $status.Anchor = 'Left,Right,Bottom'
@@ -681,9 +698,9 @@ $validateAction = {
         $result = Test-SourceProject -Project $item.Tag
         $item.Tag.Validation = $result
         $item.SubItems[0].Text = $result.Status
-        $item.SubItems[7].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
-        $item.SubItems[8].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
-        $item.SubItems[9].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
+        $item.SubItems[8].Text = if ($result.Markers.Types.Count -gt 0) { $result.Markers.Types -join ', ' } else { 'Unbekannt' }
+        $item.SubItems[9].Text = if ($null -ne $result.Manifest) { [string]$result.Manifest.FileCount } else { '-' }
+        $item.SubItems[10].Text = if ($null -ne $result.Manifest) { Format-Bytes $result.Manifest.Bytes } else { '-' }
         if ($result.Status -eq 'FEHLER') { $item.ForeColor = [System.Drawing.Color]::DarkRed }
         elseif ($result.Status -eq 'WARNUNG') { $item.ForeColor = [System.Drawing.Color]::DarkOrange }
         else { $item.ForeColor = [System.Drawing.Color]::DarkGreen }
@@ -842,6 +859,8 @@ $move.Add_Click({
                 }
                 if ($backup.Checked) { $arguments.Backup = $true }
                 if (-not $originMetadata.Checked) { $arguments.NoOriginMetadata = $true }
+                if (-not $sessionBundle.Checked) { $arguments.NoSessionBundle = $true }
+                if (-not $sessionArtifacts.Checked) { $arguments.NoArtifactCopy = $true }
                 & $coreScript @arguments
                 $completed++
             }

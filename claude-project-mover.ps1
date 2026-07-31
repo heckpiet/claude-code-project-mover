@@ -35,6 +35,12 @@ Records how project files reached the destination: Move, Copy, MetadataOnly, or 
 .PARAMETER NoOriginMetadata
 Disables the portable .claude-project-origin.json record in the destination.
 
+.PARAMETER NoSessionBundle
+Disables the portable .claude-session-bundle copy in the destination.
+
+.PARAMETER NoArtifactCopy
+Disables discovery and copying of safe files created by folderless sessions.
+
 .PARAMETER Backup
 Creates a ZIP backup before changing files. Interactive mode asks whether a
 backup should be created when this switch is not supplied.
@@ -109,6 +115,12 @@ param(
     [switch]$NoOriginMetadata,
 
     [Parameter()]
+    [switch]$NoSessionBundle,
+
+    [Parameter()]
+    [switch]$NoArtifactCopy,
+
+    [Parameter()]
     [switch]$Backup,
 
     [Parameter()]
@@ -141,7 +153,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.5.1'
+$ScriptVersion = '1.6.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -534,6 +546,10 @@ function Show-ClaudeProjectOverview {
         else {
             Write-Host '     Eigener Projektordner erkannt' -ForegroundColor DarkGray
         }
+        if ($project.PSObject.Properties.Name -contains 'SafeArtifactCount') {
+            Write-Host ('     Session-Dateien: {0} sichere Bereiche, {1} sensible/systemgebundene Pfade' -f `
+                $project.SafeArtifactCount, $project.SensitiveArtifactCount) -ForegroundColor DarkGray
+        }
     }
 }
 
@@ -683,19 +699,6 @@ function New-ProjectBackup {
     return $backupPath
 }
 
-function Get-ReplacementPairs {
-    param(
-        [Parameter(Mandatory)][string]$OldPath,
-        [Parameter(Mandatory)][string]$NewPath
-    )
-
-    $pairs = [ordered]@{}
-    $pairs[$OldPath] = $NewPath
-    $pairs[$OldPath.Replace('\', '\\')] = $NewPath.Replace('\', '\\')
-    $pairs[$OldPath.Replace('\', '/')] = $NewPath.Replace('\', '/')
-    return $pairs
-}
-
 function Update-ProjectMetadataFiles {
     param(
         [Parameter(Mandatory)][string]$ProjectDirectory,
@@ -704,17 +707,23 @@ function Update-ProjectMetadataFiles {
     )
 
     $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-    $replacementPairs = Get-ReplacementPairs -OldPath $OldPath -NewPath $NewPath
-    $candidateFiles = @(Get-ChildItem -LiteralPath $ProjectDirectory -File -Recurse | Where-Object { $_.Extension -in '.jsonl', '.json' })
+    $candidateFiles = @(Get-ChildItem -LiteralPath $ProjectDirectory -File -Recurse -Filter '*.jsonl')
     $updatedFiles = 0
+    $oldJson = ($OldPath | ConvertTo-Json -Compress).Trim('"')
+    $newJson = ($NewPath | ConvertTo-Json -Compress).Trim('"')
+    $pattern = '("cwd"\s*:\s*")' + [regex]::Escape($oldJson) + '(")'
 
     foreach ($file in $candidateFiles) {
         $content = [System.IO.File]::ReadAllText($file.FullName)
-        $updatedContent = $content
-        foreach ($oldValue in $replacementPairs.Keys) {
-            if ([string]::IsNullOrEmpty([string]$oldValue)) { continue }
-            $updatedContent = $updatedContent.Replace([string]$oldValue, [string]$replacementPairs[$oldValue])
-        }
+        $updatedContent = [regex]::Replace(
+            $content,
+            $pattern,
+            [Text.RegularExpressions.MatchEvaluator]{
+                param($match)
+                return $match.Groups[1].Value + $newJson + $match.Groups[2].Value
+            },
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase
+        )
 
         if ($updatedContent -cne $content) {
             $temporaryFile = $file.FullName + '.tmp'
@@ -725,6 +734,156 @@ function Update-ProjectMetadataFiles {
     }
 
     return $updatedFiles
+}
+
+function Get-SessionTransferInventory {
+    param(
+        [Parameter(Mandatory)][object]$Project,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string]$ProjectsDirectory
+    )
+
+    $sourceRoot = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd('\', '/')
+    $sessionFiles = @(Get-ChildItem -LiteralPath $Project.Directory.FullName -File -Filter '*.jsonl' -Recurse)
+    $sessionIds = @($sessionFiles | ForEach-Object { $_.BaseName } | Where-Object { $_ -match '^[0-9a-fA-F-]{36}$' } | Select-Object -Unique)
+    $safeRoots = New-Object System.Collections.Generic.List[string]
+    $sensitive = New-Object System.Collections.Generic.List[string]
+
+    foreach ($file in $sessionFiles) {
+        foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
+            try { $record = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+            if ($record.PSObject.Properties.Name -notcontains 'message' -or $null -eq $record.message -or
+                $record.message.PSObject.Properties.Name -notcontains 'content') { continue }
+            foreach ($part in @($record.message.content)) {
+                if ($null -eq $part -or $part.PSObject.Properties.Name -notcontains 'type' -or
+                    [string]$part.type -ne 'tool_use' -or $part.PSObject.Properties.Name -notcontains 'name' -or
+                    [string]$part.name -notin @('Write', 'Edit', 'NotebookEdit') -or
+                    $part.PSObject.Properties.Name -notcontains 'input' -or $null -eq $part.input) { continue }
+                $pathValue = $null
+                foreach ($property in @('file_path', 'notebook_path', 'path')) {
+                    if ($part.input.PSObject.Properties.Name -contains $property) {
+                        $pathValue = [string]$part.input.$property
+                        if (-not [string]::IsNullOrWhiteSpace($pathValue)) { break }
+                    }
+                }
+                if ([string]::IsNullOrWhiteSpace($pathValue)) { continue }
+                try {
+                    $absolute = if ([System.IO.Path]::IsPathRooted($pathValue)) {
+                        [System.IO.Path]::GetFullPath($pathValue)
+                    }
+                    else {
+                        [System.IO.Path]::GetFullPath((Join-Path $sourceRoot $pathValue))
+                    }
+                }
+                catch { continue }
+                $prefix = $sourceRoot + [System.IO.Path]::DirectorySeparatorChar
+                if (-not $absolute.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { continue }
+                $relative = $absolute.Substring($prefix.Length)
+                $firstSegment = ($relative -split '[\\/]')[0]
+                if ($firstSegment -in @('.ssh', '.claude', '.codex', 'AppData') -or $firstSegment.StartsWith('.')) {
+                    [void]$sensitive.Add($absolute)
+                    continue
+                }
+                $root = Join-Path $sourceRoot $firstSegment
+                if (Test-Path -LiteralPath $root) { [void]$safeRoots.Add($root) }
+            }
+        }
+    }
+
+    $claudeConfig = Split-Path -Parent $ProjectsDirectory
+    $oldFolderName = ConvertTo-ClaudeProjectFolderName -Path $sourceRoot
+    $tempProjectRoot = Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) 'claude') $oldFolderName
+    $historyDirectories = foreach ($id in $sessionIds) {
+        $candidate = Join-Path (Join-Path $claudeConfig 'file-history') $id
+        if (Test-Path -LiteralPath $candidate -PathType Container) { Get-Item -LiteralPath $candidate }
+    }
+    $runtimeDirectories = foreach ($id in $sessionIds) {
+        $candidate = Join-Path $tempProjectRoot $id
+        if (Test-Path -LiteralPath $candidate -PathType Container) { Get-Item -LiteralPath $candidate }
+    }
+
+    return [pscustomobject]@{
+        SessionIds = $sessionIds
+        SessionFiles = $sessionFiles
+        SafeArtifactRoots = @($safeRoots | Select-Object -Unique)
+        SensitivePaths = @($sensitive | Select-Object -Unique)
+        HistoryDirectories = @($historyDirectories)
+        RuntimeDirectories = @($runtimeDirectories)
+    }
+}
+
+function Copy-SessionArtifacts {
+    param(
+        [Parameter(Mandatory)][object]$Inventory,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string]$DestinationPath
+    )
+    $copied = New-Object System.Collections.Generic.List[string]
+    $sourceRoot = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd('\', '/')
+    foreach ($root in @($Inventory.SafeArtifactRoots)) {
+        $relative = $root.Substring($sourceRoot.Length).TrimStart('\', '/')
+        $destination = Join-Path $DestinationPath $relative
+        if (Test-Path -LiteralPath $destination) { continue }
+        Copy-Item -LiteralPath $root -Destination $destination -Recurse -Force
+        [void]$copied.Add($relative)
+    }
+    return @($copied)
+}
+
+function Write-PortableSessionBundle {
+    param(
+        [Parameter(Mandatory)][object]$Inventory,
+        [Parameter(Mandatory)][string]$MetadataPath,
+        [Parameter(Mandatory)][string]$DestinationPath,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$CopiedArtifacts
+    )
+    $bundlePath = Join-Path $DestinationPath '.claude-session-bundle'
+    $temporaryPath = $bundlePath + '.tmp'
+    if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath -Recurse -Force }
+    if (Test-Path -LiteralPath $bundlePath -PathType Container) {
+        Copy-Item -LiteralPath $bundlePath -Destination $temporaryPath -Recurse -Force
+    }
+    else {
+        [void](New-Item -ItemType Directory -Path $temporaryPath)
+    }
+    $metadataDestination = Join-Path $temporaryPath 'metadata'
+    if (Test-Path -LiteralPath $metadataDestination) { Remove-Item -LiteralPath $metadataDestination -Recurse -Force }
+    Copy-Item -LiteralPath $MetadataPath -Destination $metadataDestination -Recurse -Force
+    foreach ($directory in @($Inventory.HistoryDirectories)) {
+        $historyRoot = Join-Path $temporaryPath 'file-history'
+        [void](New-Item -ItemType Directory -Path $historyRoot -Force)
+        Copy-Item -LiteralPath $directory.FullName -Destination (Join-Path $historyRoot $directory.Name) -Recurse -Force
+    }
+    foreach ($directory in @($Inventory.RuntimeDirectories)) {
+        $runtimeRoot = Join-Path $temporaryPath 'runtime'
+        [void](New-Item -ItemType Directory -Path $runtimeRoot -Force)
+        Copy-Item -LiteralPath $directory.FullName -Destination (Join-Path $runtimeRoot $directory.Name) -Recurse -Force
+    }
+    $manifest = [ordered]@{
+        schemaVersion = 1
+        createdAtUtc = [datetime]::UtcNow.ToString('o')
+        sourcePath = $SourcePath
+        currentPath = $DestinationPath
+        sessions = @($Inventory.SessionIds)
+        copiedArtifacts = @($CopiedArtifacts)
+        skippedSensitivePaths = @($Inventory.SensitivePaths)
+        metadataDirectory = 'metadata'
+        fileHistoryDirectory = 'file-history'
+        runtimeDirectory = 'runtime'
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $temporaryPath 'manifest.json'),
+        ($manifest | ConvertTo-Json -Depth 6),
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+    $restoreScript = Join-Path $PSScriptRoot 'scripts\Restore-ClaudeSession.ps1'
+    if (Test-Path -LiteralPath $restoreScript -PathType Leaf) {
+        Copy-Item -LiteralPath $restoreScript -Destination (Join-Path $temporaryPath 'Restore-ClaudeSession.ps1') -Force
+    }
+    if (Test-Path -LiteralPath $bundlePath) { Remove-Item -LiteralPath $bundlePath -Recurse -Force }
+    Move-Item -LiteralPath $temporaryPath -Destination $bundlePath
+    return $bundlePath
 }
 
 function Read-YesNo {
@@ -1055,6 +1214,10 @@ $newFolderName = $destinationAssessment.FolderName
 $newMetadataPath = $destinationAssessment.MetadataPath
 $projectHealth = $destinationAssessment.ProjectHealth
 $effectiveTransferMode = if ($createDedicatedFolder) { 'CreateFolder' } else { $TransferMode }
+$sessionTransfer = Get-SessionTransferInventory `
+    -Project $selectedProject `
+    -SourcePath $oldPath `
+    -ProjectsDirectory $projectsDirectory
 
 Write-Section 'Vorprüfungen'
 $metadataSummary = Get-DirectorySummary -Path $selectedProject.Directory.FullName
@@ -1062,6 +1225,17 @@ $metadataHealth = Test-MetadataHealth -Path $selectedProject.Directory.FullName 
 
 Write-Host ("Zielprojekt: {0} Dateien, {1}, Merkmale: {2}" -f $projectHealth.Summary.FileCount, (Format-ByteSize $projectHealth.Summary.Bytes), (($projectHealth.Markers -join ', ')))
 Write-Host ("Claude-Metadaten: {0} JSONL-Dateien, {1} gültige Datensätze, {2}" -f $metadataHealth.JsonlFileCount, $metadataHealth.ValidRecords, (Format-ByteSize $metadataSummary.Bytes))
+Write-Host ("Session-Paket: {0} Session(s), {1} sichere Artefaktbereiche, {2} Dateiverläufe, {3} Runtime-Ordner" -f `
+    $sessionTransfer.SessionIds.Count,
+    $sessionTransfer.SafeArtifactRoots.Count,
+    $sessionTransfer.HistoryDirectories.Count,
+    $sessionTransfer.RuntimeDirectories.Count)
+if ($sessionTransfer.SafeArtifactRoots.Count -gt 0) {
+    Write-Host ('Sichere Artefakte: ' + (($sessionTransfer.SafeArtifactRoots | ForEach-Object { Split-Path -Leaf $_ }) -join ', ')) -ForegroundColor Green
+}
+if ($sessionTransfer.SensitivePaths.Count -gt 0) {
+    Write-Warning ("Nicht automatisch kopierte sensible/systemgebundene Pfade: {0}" -f ($sessionTransfer.SensitivePaths -join ', '))
+}
 
 if ($metadataHealth.Errors.Count -gt 0) {
     throw ('Metadata validation failed: ' + ($metadataHealth.Errors -join ' '))
@@ -1093,6 +1267,8 @@ Write-Host "Backup:   $createBackup"
 Write-Host "Eigenen Projektordner anlegen: $createDedicatedFolder"
 Write-Host "Übertragungsart: $effectiveTransferMode"
 Write-Host "Herkunftsmetadaten: $(-not $NoOriginMetadata.IsPresent)"
+Write-Host "Portables Session-Paket: $(-not $NoSessionBundle.IsPresent)"
+Write-Host "Sichere Session-Artefakte kopieren: $($createDedicatedFolder -and -not $NoArtifactCopy.IsPresent)"
 
 if ($CheckOnly.IsPresent) {
     Write-Host ''
@@ -1116,6 +1292,8 @@ $destinationCreated = $false
 $originManifestPath = Join-Path $NewPath '.claude-project-origin.json'
 $originManifestExisted = Test-Path -LiteralPath $originManifestPath -PathType Leaf
 $originManifestPreviousContent = if ($originManifestExisted) { [System.IO.File]::ReadAllText($originManifestPath) } else { $null }
+$copiedArtifacts = @()
+$sessionBundlePath = $null
 
 try {
     if ($createDedicatedFolder) {
@@ -1151,6 +1329,21 @@ try {
     if (-not (Test-Path -LiteralPath $NewPath -PathType Container)) {
         throw "Der neue Projektordner fehlt nach der Migration: '$NewPath'."
     }
+    if ($createDedicatedFolder -and -not $NoArtifactCopy.IsPresent) {
+        $copiedArtifacts = @(Copy-SessionArtifacts -Inventory $sessionTransfer -SourcePath $oldPath -DestinationPath $NewPath)
+        if ($copiedArtifacts.Count -gt 0) {
+            Write-Host ('Session-Artefakte kopiert: ' + ($copiedArtifacts -join ', ')) -ForegroundColor Green
+        }
+    }
+    if (-not $NoSessionBundle.IsPresent) {
+        $sessionBundlePath = Write-PortableSessionBundle `
+            -Inventory $sessionTransfer `
+            -MetadataPath $newMetadataPath `
+            -DestinationPath $NewPath `
+            -SourcePath $oldPath `
+            -CopiedArtifacts $copiedArtifacts
+        Write-Host "Portables Session-Paket: $sessionBundlePath" -ForegroundColor Green
+    }
     if (-not $NoOriginMetadata.IsPresent) {
         $originManifestPath = Write-ProjectOriginManifest `
             -DestinationPath $NewPath `
@@ -1175,6 +1368,7 @@ try {
     Write-Host "Metadata:      $newMetadataPath"
     Write-Host "Files updated: $updatedFileCount"
     Write-Host "Sessions:      $($finalHealth.ValidRecords) valid records"
+    if ($null -ne $sessionBundlePath) { Write-Host "Session bundle: $sessionBundlePath" }
     if (-not $NoOriginMetadata.IsPresent) { Write-Host "Origin record: $originManifestPath" }
 }
 catch {
@@ -1196,10 +1390,7 @@ catch {
         Remove-Item -LiteralPath $originManifestPath -Force -ErrorAction SilentlyContinue
     }
     if ($destinationCreated -and (Test-Path -LiteralPath $NewPath -PathType Container)) {
-        $remainingItems = @(Get-ChildItem -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue)
-        if ($remainingItems.Count -eq 0) {
-            Remove-Item -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue
-        }
+        Remove-Item -LiteralPath $NewPath -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     throw

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.6.0] - 2026-07-31
+
+### Added
+
+- Portable `.claude-session-bundle` with session JSONL, memory, tool results, file-history versions, scratchpad, and task data when present
+- Safe artifact discovery from Claude `Write`, `Edit`, and `NotebookEdit` calls for folderless sessions
+- Automatic copying of safe artifact areas while sensitive, hidden, system, and external paths remain excluded
+- Artifact counts and default-enabled bundle controls in PowerShell CLI and Windows GUI
+- PowerShell and Bash restore helpers for installing a bundle into Claude Home on another computer
+- End-to-end PowerShell 7, Windows PowerShell 5.1, and Bash bundle coverage
+
+### Fixed
+
+- JSONL migration updates only `cwd` instead of replacing the old path in historical commands, tool inputs, and file-history data
+
 ## [1.5.1] - 2026-07-31
 
 ### Fixed

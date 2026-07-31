@@ -69,6 +69,8 @@ A pull request should explain:
 - validation performed
 - limitations that remain
 
+Session bundle changes must use synthetic fixtures only. JSONL migrations may update semantic `cwd` fields but must never globally replace historical command text, tool arguments, file-history parents, prompts, or responses.
+
 Prefer small, reviewable changes over unrelated updates in one pull request.
 
 # Versioning

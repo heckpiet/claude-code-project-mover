@@ -37,6 +37,7 @@ pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-
 7. **Verschieben**, **Kopieren** oder **Nur Metadaten** auswählen.
 8. Das ZIP-Backup der Claude-Metadaten aktiviert lassen.
 9. **Herkunft im Ziel dokumentieren** aktiviert lassen.
+10. **Session-Paket sichern** und **Sichere Session-Dateien kopieren** aktiviert lassen.
 10. Auf **Ausführen** klicken und den geprüften Plan bestätigen.
 
 Beim Klick auf **Ausführen** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verarbeitet.
@@ -115,6 +116,12 @@ Die Projektliste zeigt dafür zusätzlich **Ordnerstatus** und **Zielordner-Vors
 ## Herkunftsdatei im Ziel
 
 Die standardmäßig aktivierte Option **Herkunft im Ziel dokumentieren** erzeugt `.claude-project-origin.json`. Sie enthält Computer, Benutzer, Quellpfad, Zeitpunkt, Übertragungsart, Tool-Version, technische Projekt- und Sitzungszählwerte sowie das Ergebnis der Nachprüfung. Bei späteren Übertragungen wird die Historie ergänzt. Sitzungsinhalte, Zugangsdaten, IP-Adressen, Hardware-IDs und Windows-SIDs werden nicht gespeichert.
+
+## Session-Paket und erzeugte Dateien
+
+Die GUI zeigt für jedes Projekt die Anzahl sicherer Session-Bereiche und sensibler Pfade. **Session-Paket sichern** erstellt `.claude-session-bundle` mit JSONL, Memory, Tool-Ergebnissen, File-History, Scratchpad und Tasks. **Sichere Session-Dateien kopieren** übernimmt bei ordnerlosen Sessions erkannte Arbeitsbereiche in den neuen Projektordner. `.ssh`, `.claude`, `.codex`, `AppData`, versteckte und externe Pfade werden nicht automatisch kopiert.
+
+Das Bundle enthält `Restore-ClaudeSession.ps1`. Damit kann die Session nach dem Kopieren des gesamten Projektordners auf einem anderen Windows-Rechner in dessen Claude Home installiert werden.
 
 Beispiel:
 
