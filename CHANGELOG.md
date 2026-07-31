@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [1.9.0] - 2026-07-31
+
+### Added
+
+- Automated GitHub Release packaging with a versioned ZIP and SHA-256 checksum for matching `vX.Y.Z` tags
+- Direct release-download guidance and release badge in the Windows-first documentation
+
+### Fixed
+
+- Bash restore now reinstalls runtime `scratchpad` and `tasks` data like the PowerShell restore helper
+- CI version consistency now explicitly validates the Windows GUI and runs when README version data changes
+
 ## [1.8.4] - 2026-07-31
 
 ### Fixed

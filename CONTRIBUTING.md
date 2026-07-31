@@ -81,8 +81,8 @@ This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 - Increment `MINOR` for backward-compatible features.
 - Increment `PATCH` for backward-compatible bug fixes.
 - Increment `MAJOR` for breaking behavior or parameter changes.
-- Keep `VERSION`, README and the embedded versions in PowerShell, Bash and CMD identical.
+- Keep `VERSION`, README and the embedded versions in the PowerShell CLI, Windows GUI, Bash and CMD identical.
 - Use `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` to update all values safely.
-- For a release, move the relevant changelog entries under `## [X.Y.Z] - YYYY-MM-DD`, then create the tag `vX.Y.Z`.
+- For a release, move the relevant changelog entries under `## [X.Y.Z] - YYYY-MM-DD`, then push an annotated tag `vX.Y.Z`. The release workflow builds the ZIP and checksum and publishes the GitHub Release.
 
 GitHub Actions validates the version format and consistency automatically.

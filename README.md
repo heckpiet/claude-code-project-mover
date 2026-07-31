@@ -5,10 +5,11 @@
 [![Compatibility](https://img.shields.io/badge/compatibility-macOS%20%7C%20Linux-lightgrey)](#plattformen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PowerShell validation](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml/badge.svg)](https://github.com/heckpiet/claude-code-project-mover/actions/workflows/powershell.yml)
+[![Latest release](https://img.shields.io/github/v/release/heckpiet/claude-code-project-mover?display_name=tag)](https://github.com/heckpiet/claude-code-project-mover/releases/latest)
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.8.4**
+Aktuelle Version: **1.9.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -25,7 +26,7 @@ Das Bash-Skript für macOS und Linux bleibt als gepflegte Kompatibilitätsvarian
 
 ## Schnellstart unter Windows
 
-1. Über **Code → Download ZIP** den vollständigen Quellordner laden und entpacken oder das Repository mit Git klonen. Ein separates GitHub Release-Paket folgt nach Abschluss der Skriptarbeiten.
+1. Unter [Releases](https://github.com/heckpiet/claude-code-project-mover/releases/latest) das versionierte ZIP herunterladen und entpacken. Alternativ das Repository klonen oder über **Code → Download ZIP** laden.
 2. Claude Code und alle betroffenen Sitzungen schließen.
 3. `Start-ClaudeProjectMover.cmd` doppelt anklicken.
 4. Projekte auswählen und **Quellen prüfen** anklicken.
@@ -320,7 +321,7 @@ Bei jeder Änderung:
 1. Änderung unter `Unreleased` in `CHANGELOG.md` dokumentieren.
 2. Vor einem Release die Version mit `.\scripts\Update-Version.ps1 -Part Major|Minor|Patch` erhöhen.
 3. Die Release-Einträge unter eine datierte Versionsüberschrift verschieben.
-4. Nach dem Merge einen Git-Tag `vMAJOR.MINOR.PATCH` und ein gleichnamiges GitHub Release erstellen.
+4. Nach dem Merge einen signierten oder annotierten Git-Tag `vMAJOR.MINOR.PATCH` pushen. Der Release-Workflow erzeugt automatisch das versionierte ZIP, die SHA-256-Prüfsumme und das gleichnamige GitHub Release.
 
 Beispiele:
 
@@ -379,9 +380,10 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 │   ├── ISSUE_TEMPLATE/
 │   ├── workflows/bash.yml
 │   ├── workflows/powershell.yml
+│   ├── workflows/release.yml
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
-│   └── pull_request_template.md
+│   └── PULL_REQUEST_TEMPLATE.md
 ├── Start-ClaudeProjectMover.cmd
 ├── START-HERE.md
 ├── WINDOWS-GUI.md
@@ -395,6 +397,10 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 ├── tests/
 │   ├── Test-FolderSuggestions.ps1
 │   ├── Test-FolderlessMigration.ps1
+│   ├── Test-AdoptExistingFolder.ps1
+│   ├── Test-CollectionFolderDetection.ps1
+│   ├── Test-GuiVersionSource.ps1
+│   ├── Test-PriorTransferDetection.ps1
 │   ├── test-origin-manifest.sh
 │   └── test-session-bundle.sh
 ├── CHANGELOG.md

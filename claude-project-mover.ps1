@@ -167,7 +167,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.8.4'
+$ScriptVersion = '1.9.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'

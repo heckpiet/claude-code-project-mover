@@ -6,7 +6,7 @@ Dieses Repository wird als Windows-first-Projekt entwickelt und getestet. Der em
 
 ## Vorbereitung
 
-1. Über **Code → Download ZIP** den vollständigen Quellordner herunterladen und entpacken oder das Repository klonen. Ein separates Release-Paket ist noch nicht veröffentlicht.
+1. Unter [GitHub Releases](https://github.com/heckpiet/claude-code-project-mover/releases/latest) das aktuelle versionierte ZIP herunterladen und entpacken. Alternativ das Repository klonen oder über **Code → Download ZIP** laden.
 2. Claude Code sowie alle Sitzungen der betroffenen Projekte schließen.
 3. Prüfen, dass diese Dateien im gleichen Ordner liegen:
 
