@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.9.0"
+SCRIPT_VERSION="2.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -16,6 +16,18 @@ fi
 
 CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PROJECTS_DIR="$CLAUDE_CONFIG_DIR/projects"
+UI_LANGUAGE="${CLAUDE_MOVER_LANGUAGE:-auto}"
+if [[ "$UI_LANGUAGE" == "auto" ]]; then
+    if [[ "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" == de* ]]; then UI_LANGUAGE="de"; else UI_LANGUAGE="en"; fi
+fi
+[[ "$UI_LANGUAGE" == "de" || "$UI_LANGUAGE" == "en" ]] || {
+    echo "CLAUDE_MOVER_LANGUAGE must be 'auto', 'de', or 'en'." >&2
+    exit 2
+}
+
+t() {
+    if [[ "$UI_LANGUAGE" == "de" ]]; then printf '%s' "$2"; else printf '%s' "$1"; fi
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -27,7 +39,7 @@ NC='\033[0m' # No Color
 print_header() {
     echo -e "${GREEN}================================================================${NC}"
     echo -e "${GREEN}  Claude Code Project Mover v${SCRIPT_VERSION}${NC}"
-    echo "  Moves projects and safely updates their Claude Code metadata."
+    echo "  $(t 'Moves projects and safely updates their Claude Code metadata.' 'Verschiebt Projekte und aktualisiert ihre Claude-Code-Metadaten sicher.')"
     echo -e "  ${BLUE}By heckpiet | https://github.com/heckpiet/claude-code-project-mover${NC}"
     echo -e "${GREEN}================================================================${NC}"
     echo ""
@@ -43,7 +55,8 @@ Usage:
   ./claude-project-mover.sh --version
   ./claude-project-mover.sh --help
 
-CLAUDE_CONFIG_DIR can override the default Claude home directory (~/.claude).
+CLAUDE_CONFIG_DIR overrides the default Claude home directory (~/.claude).
+CLAUDE_MOVER_LANGUAGE selects auto, en, or de.
 EOF
 }
 
@@ -82,7 +95,7 @@ get_session_details() {
     done
 
     if [[ -z "$latest_file" ]]; then
-        printf '%s\t%s\t%s\n' "-" "0" "Keine Beschreibung verfügbar"
+        printf '%s\t%s\t%s\n' "-" "0" "$(t 'No description available' 'Keine Beschreibung verfügbar')"
         return
     fi
 
@@ -124,7 +137,7 @@ print(" ".join(best.split())[:100])
 PY
 )
     fi
-    [[ -n "$description" ]] || description="Keine Beschreibung verfügbar"
+    [[ -n "$description" ]] || description="$(t 'No description available' 'Keine Beschreibung verfügbar')"
     printf '%s\t%s\t%s\n' "$timestamp" "$session_count" "$description"
 }
 
@@ -297,7 +310,9 @@ PY
 # List all projects with numbers
 list_projects() {
     local i=1
-    printf "${BLUE}%-4s %-17s %-9s %-14s %-30s %-38s %s${NC}\n" "Nr." "Letzte Sitzung" "Sessions" "Ordnerstatus" "Vorschlag" "Beschreibung" "Projektpfad"
+    printf "${BLUE}%-4s %-17s %-9s %-14s %-30s %-38s %s${NC}\n" \
+        "$(t 'No.' 'Nr.')" "$(t 'Latest session' 'Letzte Sitzung')" "$(t 'Sessions' 'Sitzungen')" \
+        "$(t 'Folder status' 'Ordnerstatus')" "$(t 'Suggestion' 'Vorschlag')" "$(t 'Description' 'Beschreibung')" "$(t 'Project path' 'Projektpfad')"
     printf '%s\n' "------------------------------------------------------------------------------------------------------------------------------------------------"
     for dir in "$PROJECTS_DIR"/-*/; do
         if [[ -d "$dir" ]]; then
@@ -306,9 +321,9 @@ list_projects() {
             local details timestamp session_count description
             details=$(get_session_details "$dir")
             IFS=$'\t' read -r timestamp session_count description <<< "$details"
-            local folder_status="Eigener Ordner" suggestion="-"
+            local folder_status="$(t 'Dedicated folder' 'Eigener Ordner')" suggestion="-"
             if needs_dedicated_project_folder "$readable_path"; then
-                folder_status="SAMMELORDNER"
+                folder_status="$(t 'COLLECTION' 'SAMMELORDNER')"
                 suggestion=$(smart_folder_suggestion "$description" "$timestamp" "$folder_name")
             fi
             printf "${BLUE}%3d)${NC} %-17s %-9s %-14s %-30.30s %-38.38s %s\n" \
@@ -587,7 +602,7 @@ main() {
         exit 1
     fi
 
-    echo -e "${BLUE}Select a project to update${NC}"
+    echo -e "${BLUE}$(t 'Select a project to update' 'Projekt zum Aktualisieren auswählen')${NC}"
     echo -e "${BLUE}──────────────────────────${NC}"
     echo ""
 
@@ -609,11 +624,11 @@ main() {
 
         local selection
         while true; do
-            read -p "Enter project number (1-$total): " selection
+            read -p "$(t "Enter project number (1-$total): " "Projektnummer eingeben (1-$total): ")" selection
             if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "$total" ]]; then
                 break
             fi
-            echo -e "${RED}Invalid selection. Please enter a number between 1 and $total.${NC}"
+            echo -e "${RED}$(t "Invalid selection. Enter a number between 1 and $total." "Ungültige Auswahl. Eine Zahl zwischen 1 und $total eingeben.")${NC}"
         done
 
         selected_folder=$(get_project_by_index "$selection")
@@ -629,7 +644,7 @@ main() {
 
     echo ""
     echo ""
-    echo -e "${BLUE}Enter the new project location${NC}"
+    echo -e "${BLUE}$(t 'Enter the new project location' 'Neuen Projektpfad eingeben')${NC}"
     echo -e "${BLUE}───────────────────────────────${NC}"
     echo -e "  Current: ${YELLOW}$selected_path${NC}"
 

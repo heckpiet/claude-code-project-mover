@@ -161,16 +161,30 @@ param(
 
     [Parameter()]
     [ValidateRange(1, 1000)]
-    [int]$LastSessions = 10
+    [int]$LastSessions = 10,
+
+    [Parameter()]
+    [ValidateSet('Auto', 'de', 'en')]
+    [string]$Language = 'Auto'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.9.0'
+$ScriptVersion = '2.0.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
+$LocalizationModulePath = Join-Path $PSScriptRoot 'ClaudeProjectLocalization.psm1'
+if (-not (Test-Path -LiteralPath $LocalizationModulePath -PathType Leaf)) {
+    throw "Required localization module not found: '$LocalizationModulePath'."
+}
+Import-Module -Name $LocalizationModulePath -Force
+$UiLanguage = Resolve-ClaudeMoverLanguage -Language $Language
+function T {
+    param([Parameter(Mandatory)][string]$English, [Parameter(Mandatory)][string]$German, [object[]]$Arguments)
+    Get-ClaudeMoverText -English $English -German $German -Language $UiLanguage -Arguments $Arguments
+}
 if (Test-Path -LiteralPath $InventoryModulePath -PathType Leaf) {
     Import-Module -Name $InventoryModulePath -Force
 }
@@ -179,7 +193,7 @@ function Show-ScriptHeader {
     $border = '=' * 78
     Write-Host $border -ForegroundColor Green
     Write-Host ("  Claude Code Project Mover v{0}" -f $ScriptVersion) -ForegroundColor Green
-    Write-Host '  Moves projects and safely updates their Claude Code session metadata.'
+    Write-Host (T '  Moves projects and safely updates their Claude Code session metadata.' '  Verschiebt Projekte und aktualisiert ihre Claude-Code-Sitzungsmetadaten sicher.')
     Write-Host ("  By {0} | {1}" -f $ScriptAuthor, $ProjectUrl) -ForegroundColor Cyan
     Write-Host $border -ForegroundColor Green
 }
@@ -533,8 +547,8 @@ function Show-ClaudeSessions {
 function Show-ClaudeProjectOverview {
     param([Parameter(Mandatory)][object[]]$Projects)
 
-    Write-Section 'Claude-Code-Projektübersicht'
-    Write-Host 'Die zuletzt verwendeten Projekte werden zuerst angezeigt.' -ForegroundColor DarkGray
+    Write-Section (T 'Claude Code project overview' 'Claude-Code-Projektübersicht')
+    Write-Host (T 'The most recently used projects are shown first.' 'Die zuletzt verwendeten Projekte werden zuerst angezeigt.') -ForegroundColor DarkGray
     Write-Host ''
     for ($index = 0; $index -lt $Projects.Count; $index++) {
         $project = $Projects[$index]
@@ -552,13 +566,13 @@ function Show-ClaudeProjectOverview {
             '(no description available)'
         }
 
-        Write-Host ('{0,3}) {1} | {2,3} Sitzung(en) | {3}' -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
+        Write-Host ((T '{0,3}) {1} | {2,3} session(s) | {3}' '{0,3}) {1} | {2,3} Sitzung(en) | {3}') -f ($index + 1), $lastSession, $sessionCount, $description) -ForegroundColor White
         Write-Host ('     {0}' -f $project.Path) -ForegroundColor DarkGray
         if ($project.PSObject.Properties.Name -contains 'NeedsDedicatedFolder' -and $project.NeedsDedicatedFolder) {
             Write-Host ('     ORDNER FEHLT | Vorschlag: {0}' -f $project.SuggestedFolderName) -ForegroundColor Yellow
         }
         else {
-            Write-Host '     Eigener Projektordner erkannt' -ForegroundColor DarkGray
+            Write-Host (T '     Dedicated project folder detected' '     Eigener Projektordner erkannt') -ForegroundColor DarkGray
         }
         if ($project.PSObject.Properties.Name -contains 'SafeArtifactCount') {
             Write-Host ('     Session-Dateien: {0} sichere Bereiche, {1} sensible/systemgebundene Pfade' -f `
@@ -572,16 +586,16 @@ function Select-ClaudeProject {
 
     Show-ClaudeProjectOverview -Projects $Projects
     Write-Host ''
-    Write-Host 'Wähle ein Projekt anhand der Nummer aus.' -ForegroundColor Cyan
+    Write-Host (T 'Select a project by number.' 'Wähle ein Projekt anhand der Nummer aus.') -ForegroundColor Cyan
 
     while ($true) {
-        $selection = Read-Host "Projektnummer (1-$($Projects.Count))"
+        $selection = Read-Host (T "Project number (1-$($Projects.Count))" "Projektnummer (1-$($Projects.Count))")
         $parsedSelection = 0
         if ([int]::TryParse($selection, [ref]$parsedSelection) -and
             $parsedSelection -ge 1 -and $parsedSelection -le $Projects.Count) {
             return $Projects[$parsedSelection - 1]
         }
-        Write-Host 'Ungültige Auswahl.' -ForegroundColor Red
+        Write-Host (T 'Invalid selection.' 'Ungültige Auswahl.') -ForegroundColor Red
     }
 }
 

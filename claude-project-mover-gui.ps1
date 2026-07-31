@@ -29,14 +29,28 @@ param(
     [string]$ClaudeConfigDirectory,
 
     [Parameter()]
-    [switch]$NoProjectMove
+    [switch]$NoProjectMove,
+
+    [Parameter()]
+    [ValidateSet('Auto', 'de', 'en')]
+    [string]$Language = 'Auto'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.9.0'
+$ScriptVersion = '2.0.0'
+$localizationModulePath = Join-Path $PSScriptRoot 'ClaudeProjectLocalization.psm1'
+if (-not (Test-Path -LiteralPath $localizationModulePath -PathType Leaf)) {
+    throw "Required localization module not found: '$localizationModulePath'."
+}
+Import-Module -Name $localizationModulePath -Force
+$script:UiLanguage = Resolve-ClaudeMoverLanguage -Language $Language
+function T {
+    param([Parameter(Mandatory)][string]$English, [Parameter(Mandatory)][string]$German, [object[]]$Arguments)
+    Get-ClaudeMoverText -English $English -German $German -Language $script:UiLanguage -Arguments $Arguments
+}
 if ($env:OS -ne 'Windows_NT') {
-    throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
+    throw (T 'The native GUI requires Windows. Use claude-project-mover.ps1 on other platforms.' 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.')
 }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -493,7 +507,7 @@ $header.BackColor = [System.Drawing.Color]::FromArgb(15, 23, 42)
 $form.Controls.Add($header)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "Claude Code Projekte sicher verschieben - v$projectVersion"
+$title.Text = T "Move Claude Code projects safely - v$projectVersion" "Claude Code Projekte sicher verschieben - v$projectVersion"
 $title.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 16)
 $title.ForeColor = [System.Drawing.Color]::White
 $title.AutoSize = $true
@@ -501,14 +515,14 @@ $title.Location = New-Object System.Drawing.Point(24, 15)
 $header.Controls.Add($title)
 
 $description = New-Object System.Windows.Forms.Label
-$description.Text = 'Letzte Sitzungen prüfen, Projekte per Checkbox auswählen, Quellen validieren und anschließend verschieben.'
+$description.Text = T 'Review recent sessions, select projects, validate sources, and transfer them safely.' 'Letzte Sitzungen prüfen, Projekte per Checkbox auswählen, Quellen validieren und anschließend verschieben.'
 $description.ForeColor = [System.Drawing.Color]::FromArgb(203, 213, 225)
 $description.AutoSize = $true
 $description.Location = New-Object System.Drawing.Point(27, 50)
 $header.Controls.Add($description)
 
 $projectLink = New-Object System.Windows.Forms.LinkLabel
-$projectLink.Text = 'heckpiet | GitHub-Projekt'
+$projectLink.Text = T 'heckpiet | GitHub project' 'heckpiet | GitHub-Projekt'
 $projectLink.LinkColor = [System.Drawing.Color]::FromArgb(147, 197, 253)
 $projectLink.ActiveLinkColor = [System.Drawing.Color]::White
 $projectLink.AutoSize = $true
@@ -518,7 +532,7 @@ $projectLink.Add_LinkClicked({ Start-Process 'https://github.com/heckpiet/claude
 $header.Controls.Add($projectLink)
 
 $overviewLabel = New-Object System.Windows.Forms.Label
-$overviewLabel.Text = "$($projects.Count) Projekte gefunden | nach letzter Sitzung sortiert"
+$overviewLabel.Text = T "$($projects.Count) projects found | sorted by latest session" "$($projects.Count) Projekte gefunden | nach letzter Sitzung sortiert"
 $overviewLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
 $overviewLabel.ForeColor = [System.Drawing.Color]::FromArgb(55, 65, 81)
 $overviewLabel.AutoSize = $true
@@ -539,25 +553,25 @@ $list.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $list.BackColor = [System.Drawing.Color]::White
 $list.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
 [void]$list.Columns.Add('Status', 90)
-[void]$list.Columns.Add('Letzte Sitzung', 140)
-[void]$list.Columns.Add('Sessions', 75)
-[void]$list.Columns.Add('Ordnerstatus', 115)
-[void]$list.Columns.Add('Zielordner-Vorschlag', 210)
-[void]$list.Columns.Add('Beschreibung', 285)
-[void]$list.Columns.Add('Quellprojekt', 300)
-[void]$list.Columns.Add('Session-Dateien', 135)
-[void]$list.Columns.Add('Typ', 120)
-[void]$list.Columns.Add('Dateien', 70)
-[void]$list.Columns.Add('Größe', 90)
+[void]$list.Columns.Add((T 'Latest session' 'Letzte Sitzung'), 140)
+[void]$list.Columns.Add((T 'Sessions' 'Sitzungen'), 75)
+[void]$list.Columns.Add((T 'Folder status' 'Ordnerstatus'), 115)
+[void]$list.Columns.Add((T 'Suggested folder' 'Zielordner-Vorschlag'), 210)
+[void]$list.Columns.Add((T 'Description' 'Beschreibung'), 285)
+[void]$list.Columns.Add((T 'Source project' 'Quellprojekt'), 300)
+[void]$list.Columns.Add((T 'Session files' 'Session-Dateien'), 135)
+[void]$list.Columns.Add((T 'Type' 'Typ'), 120)
+[void]$list.Columns.Add((T 'Files' 'Dateien'), 70)
+[void]$list.Columns.Add((T 'Size' 'Größe'), 90)
 foreach ($project in $projects) {
-    $item = New-Object System.Windows.Forms.ListViewItem('NICHT GEPRÜFT')
+    $item = New-Object System.Windows.Forms.ListViewItem((T 'NOT CHECKED' 'NICHT GEPRÜFT'))
     [void]$item.SubItems.Add($project.LastSession.ToString('dd.MM.yyyy HH:mm'))
     [void]$item.SubItems.Add([string]$project.SessionCount)
     [void]$item.SubItems.Add($project.FolderStatus)
     [void]$item.SubItems.Add($(if ($project.NeedsDedicatedFolder) { $project.SuggestedFolderName } else { '-' }))
     [void]$item.SubItems.Add($project.Description)
     [void]$item.SubItems.Add($project.SourcePath)
-    [void]$item.SubItems.Add(('{0} sicher / {1} sensibel' -f $project.SafeArtifactCount, $project.SensitiveArtifactCount))
+    [void]$item.SubItems.Add(((T '{0} safe / {1} sensitive' '{0} sicher / {1} sensibel') -f $project.SafeArtifactCount, $project.SensitiveArtifactCount))
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
     [void]$item.SubItems.Add('-')
@@ -568,7 +582,7 @@ foreach ($project in $projects) {
 $form.Controls.Add($list)
 
 $selectAll = New-Object System.Windows.Forms.Button
-$selectAll.Text = 'Alle auswählen'
+$selectAll.Text = T 'Select all' 'Alle auswählen'
 $selectAll.Location = New-Object System.Drawing.Point(24, 448)
 $selectAll.Size = New-Object System.Drawing.Size(110, 30)
 $selectAll.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $true } })
@@ -576,7 +590,7 @@ Set-ButtonStyle -Button $selectAll
 $form.Controls.Add($selectAll)
 
 $clear = New-Object System.Windows.Forms.Button
-$clear.Text = 'Auswahl löschen'
+$clear.Text = T 'Clear selection' 'Auswahl löschen'
 $clear.Location = New-Object System.Drawing.Point(142, 448)
 $clear.Size = New-Object System.Drawing.Size(120, 30)
 $clear.Add_Click({ foreach ($item in $list.Items) { $item.Checked = $false } })
@@ -584,14 +598,14 @@ Set-ButtonStyle -Button $clear
 $form.Controls.Add($clear)
 
 $validate = New-Object System.Windows.Forms.Button
-$validate.Text = 'Quellen prüfen'
+$validate.Text = T 'Validate sources' 'Quellen prüfen'
 $validate.Location = New-Object System.Drawing.Point(270, 448)
 $validate.Size = New-Object System.Drawing.Size(125, 30)
 Set-ButtonStyle -Button $validate -Primary
 $form.Controls.Add($validate)
 
 $selectionLabel = New-Object System.Windows.Forms.Label
-$selectionLabel.Text = '0 Projekte ausgewählt'
+$selectionLabel.Text = T '0 projects selected' '0 Projekte ausgewählt'
 $selectionLabel.AutoSize = $true
 $selectionLabel.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
 $selectionLabel.Location = New-Object System.Drawing.Point(414, 456)
@@ -599,7 +613,7 @@ $form.Controls.Add($selectionLabel)
 $list.Add_ItemChecked({
     $checkedCount = $list.CheckedItems.Count
     if (-not $_.Item.Checked) { $checkedCount++ } else { $checkedCount-- }
-    $selectionLabel.Text = "$checkedCount Projekte ausgewählt"
+    $selectionLabel.Text = T "$checkedCount projects selected" "$checkedCount Projekte ausgewählt"
 })
 
 $details = New-Object System.Windows.Forms.TextBox
@@ -609,13 +623,13 @@ $details.ScrollBars = 'Vertical'
 $details.Anchor = 'Left,Right,Bottom'
 $details.Location = New-Object System.Drawing.Point(24, 490)
 $details.Size = New-Object System.Drawing.Size(1355, 82)
-$details.Text = 'Wähle Projekte anhand von Zeitstempel und Beschreibung aus und klicke auf "Quellen prüfen".'
+$details.Text = T 'Select projects using their timestamp and description, then click "Validate sources".' 'Wähle Projekte anhand von Zeitstempel und Beschreibung aus und klicke auf "Quellen prüfen".'
 $details.BackColor = [System.Drawing.Color]::White
 $details.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $form.Controls.Add($details)
 
 $targetLabel = New-Object System.Windows.Forms.Label
-$targetLabel.Text = 'Gemeinsamer Zielordner'
+$targetLabel.Text = T 'Common destination folder' 'Gemeinsamer Zielordner'
 $targetLabel.AutoSize = $true
 $targetLabel.Location = New-Object System.Drawing.Point(24, 592)
 $targetLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
@@ -628,13 +642,13 @@ $targetText.Size = New-Object System.Drawing.Size(1220, 25)
 $form.Controls.Add($targetText)
 
 $browse = New-Object System.Windows.Forms.Button
-$browse.Text = 'Durchsuchen ...'
+$browse.Text = T 'Browse ...' 'Durchsuchen ...'
 $browse.Anchor = 'Right,Bottom'
 $browse.Location = New-Object System.Drawing.Point(1254, 611)
 $browse.Size = New-Object System.Drawing.Size(125, 30)
 $browse.Add_Click({
     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $dialog.Description = 'Gemeinsamen Zielordner auswählen'
+    $dialog.Description = T 'Select a common destination folder' 'Gemeinsamen Zielordner auswählen'
     $dialog.ShowNewFolderButton = $true
     if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) { $targetText.Text = $dialog.SelectedPath }
     $dialog.Dispose()
@@ -643,49 +657,52 @@ Set-ButtonStyle -Button $browse
 $form.Controls.Add($browse)
 
 $fileOperationLabel = New-Object System.Windows.Forms.Label
-$fileOperationLabel.Text = 'Projektdateien:'
+$fileOperationLabel.Text = T 'Project files:' 'Projektdateien:'
 $fileOperationLabel.AutoSize = $true
 $fileOperationLabel.Location = New-Object System.Drawing.Point(24, 657)
 $form.Controls.Add($fileOperationLabel)
 
 $fileOperation = New-Object System.Windows.Forms.ComboBox
 $fileOperation.DropDownStyle = 'DropDownList'
-[void]$fileOperation.Items.AddRange(@('Verschieben', 'Kopieren', 'Nur Metadaten'))
-$fileOperation.SelectedItem = if ($NoProjectMove.IsPresent) { 'Nur Metadaten' } else { 'Verschieben' }
+$operationMove = T 'Move' 'Verschieben'
+$operationCopy = T 'Copy' 'Kopieren'
+$operationMetadata = T 'Metadata only' 'Nur Metadaten'
+[void]$fileOperation.Items.AddRange(@($operationMove, $operationCopy, $operationMetadata))
+$fileOperation.SelectedItem = if ($NoProjectMove.IsPresent) { $operationMetadata } else { $operationMove }
 $fileOperation.Location = New-Object System.Drawing.Point(120, 651)
 $fileOperation.Size = New-Object System.Drawing.Size(150, 28)
 $form.Controls.Add($fileOperation)
 
 $backup = New-Object System.Windows.Forms.CheckBox
-$backup.Text = 'Claude-Metadaten als ZIP sichern'
+$backup.Text = T 'Back up Claude metadata as ZIP' 'Claude-Metadaten als ZIP sichern'
 $backup.Checked = $true
 $backup.AutoSize = $true
 $backup.Location = New-Object System.Drawing.Point(300, 654)
 $form.Controls.Add($backup)
 
 $originMetadata = New-Object System.Windows.Forms.CheckBox
-$originMetadata.Text = 'Herkunft im Ziel dokumentieren'
+$originMetadata.Text = T 'Document origin at destination' 'Herkunft im Ziel dokumentieren'
 $originMetadata.Checked = $true
 $originMetadata.AutoSize = $true
 $originMetadata.Location = New-Object System.Drawing.Point(535, 654)
 $form.Controls.Add($originMetadata)
 
 $sessionBundle = New-Object System.Windows.Forms.CheckBox
-$sessionBundle.Text = 'Session-Paket sichern'
+$sessionBundle.Text = T 'Preserve session bundle' 'Session-Paket sichern'
 $sessionBundle.Checked = $true
 $sessionBundle.AutoSize = $true
 $sessionBundle.Location = New-Object System.Drawing.Point(760, 654)
 $form.Controls.Add($sessionBundle)
 
 $sessionArtifacts = New-Object System.Windows.Forms.CheckBox
-$sessionArtifacts.Text = 'Sichere Session-Dateien kopieren'
+$sessionArtifacts.Text = T 'Copy safe session files' 'Sichere Session-Dateien kopieren'
 $sessionArtifacts.Checked = $true
 $sessionArtifacts.AutoSize = $true
 $sessionArtifacts.Location = New-Object System.Drawing.Point(930, 654)
 $form.Controls.Add($sessionArtifacts)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = 'Bereit'
+$status.Text = T 'Ready' 'Bereit'
 $status.Anchor = 'Left,Right,Bottom'
 $status.Location = New-Object System.Drawing.Point(24, 707)
 $status.Size = New-Object System.Drawing.Size(730, 25)
@@ -693,7 +710,7 @@ $status.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
 $form.Controls.Add($status)
 
 $cancel = New-Object System.Windows.Forms.Button
-$cancel.Text = 'Abbrechen'
+$cancel.Text = T 'Cancel' 'Abbrechen'
 $cancel.Anchor = 'Right,Bottom'
 $cancel.Location = New-Object System.Drawing.Point(1140, 700)
 $cancel.Size = New-Object System.Drawing.Size(105, 34)
@@ -703,7 +720,7 @@ $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
 $move = New-Object System.Windows.Forms.Button
-$move.Text = 'Ausführen'
+$move.Text = T 'Run' 'Ausführen'
 $move.Anchor = 'Right,Bottom'
 $move.Location = New-Object System.Drawing.Point(1254, 700)
 $move.Size = New-Object System.Drawing.Size(125, 34)
@@ -817,13 +834,13 @@ $move.Add_Click({
             }
             $destination = Join-Path $targetRoot $leaf
             if (($dedicatedFolder -and -not $adoptExistingFolder) -or
-                (-not $dedicatedFolder -and $selectedOperation -in @('Verschieben', 'Kopieren'))) {
+                (-not $dedicatedFolder -and $selectedOperation -in @($operationMove, $operationCopy))) {
                 if (Test-Path -LiteralPath $destination) { throw "Ziel existiert bereits: $destination" }
             }
             elseif (-not (Test-Path -LiteralPath $destination -PathType Container)) {
                 throw "Zielprojekt existiert nicht: $destination"
             }
-            if (-not $dedicatedFolder -and $selectedOperation -in @('Verschieben', 'Kopieren')) { $requiredBytes += $project.Validation.Manifest.Bytes }
+            if (-not $dedicatedFolder -and $selectedOperation -in @($operationMove, $operationCopy)) { $requiredBytes += $project.Validation.Manifest.Bytes }
             [void]$plan.Add([pscustomobject]@{
                 Project = $project
                 Destination = $destination
@@ -835,7 +852,7 @@ $move.Add_Click({
             })
         }
 
-        if ($selectedOperation -in @('Verschieben', 'Kopieren')) {
+        if ($selectedOperation -in @($operationMove, $operationCopy)) {
             $available = Get-AvailableBytes -Path $targetRoot
             if ($null -ne $available) {
                 $required = [long][Math]::Max(1GB, $requiredBytes * 1.1)
@@ -896,7 +913,7 @@ $move.Add_Click({
                         "Übernehme vorhandenen Projektordner für $source"
                     }
                 }
-                elseif ($selectedOperation -eq 'Verschieben') {
+                elseif ($selectedOperation -eq $operationMove) {
                     Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
                     $moved = $true
                     $verification = Test-DestinationManifest -Manifest $manifest -Destination $destination
@@ -904,7 +921,7 @@ $move.Add_Click({
                         throw "Dateiprüfung am Ziel fehlgeschlagen. Fehlend: $($verification.Missing.Count), abweichend: $($verification.Different.Count)."
                     }
                 }
-                elseif ($selectedOperation -eq 'Kopieren') {
+                elseif ($selectedOperation -eq $operationCopy) {
                     Copy-Item -LiteralPath $source -Destination $destination -Recurse -ErrorAction Stop
                     $copied = $true
                     $verification = Test-DestinationManifest -Manifest $manifest -Destination $destination
@@ -923,10 +940,10 @@ $move.Add_Click({
                 elseif ($entry.AdoptExistingFolder) {
                     'MetadataOnly'
                 }
-                elseif ($selectedOperation -eq 'Verschieben') {
+                elseif ($selectedOperation -eq $operationMove) {
                     'Move'
                 }
-                elseif ($selectedOperation -eq 'Kopieren') {
+                elseif ($selectedOperation -eq $operationCopy) {
                     'Copy'
                 }
                 else {

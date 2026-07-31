@@ -72,7 +72,7 @@ if (-not [regex]::IsMatch($guiContent, $versionPattern)) {
 $readmeContent = [System.IO.File]::ReadAllText($readmePath)
 $bashContent = [System.IO.File]::ReadAllText($bashScriptPath)
 $cmdContent = [System.IO.File]::ReadAllText($cmdScriptPath)
-$readmeVersionPattern = '(?m)^Aktuelle Version: \*\*[^*]+\*\*\s*$'
+$readmeVersionPattern = '(?m)^Current version: \*\*[^*]+\*\*\s*$'
 if (-not [regex]::IsMatch($readmeContent, $readmeVersionPattern)) {
     throw 'Could not find the current version line in README.md.'
 }
@@ -104,7 +104,7 @@ if ($PSCmdlet.ShouldProcess($repositoryRoot, "Update version from $currentVersio
     $updatedReadme = [regex]::Replace(
         $readmeContent,
         $readmeVersionPattern,
-        "Aktuelle Version: **$newVersion**"
+        "Current version: **$newVersion**"
     )
     [System.IO.File]::WriteAllText($readmePath, $updatedReadme, $utf8WithoutBom)
     $updatedBash = [regex]::Replace($bashContent, $bashVersionPattern, "SCRIPT_VERSION=`"$newVersion`"")
