@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [1.8.3] - 2026-07-31
+
+### Changed
+
+- GitHub Actions workflows now use `actions/checkout@v5` instead of the deprecated Node.js 20 based v4 runtime
+
 ## [1.8.2] - 2026-07-31
 
 ### Fixed
