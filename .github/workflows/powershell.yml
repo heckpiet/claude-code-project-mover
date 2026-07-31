@@ -112,6 +112,10 @@ jobs:
         shell: powershell
         run: .\tests\Test-AdoptExistingFolder.ps1
 
+      - name: Test prior transfer detection
+        shell: powershell
+        run: .\tests\Test-PriorTransferDetection.ps1
+
   powershell-7:
     name: PowerShell 7
     runs-on: windows-latest
@@ -197,3 +201,7 @@ jobs:
       - name: Test existing folder adoption
         shell: pwsh
         run: .\tests\Test-AdoptExistingFolder.ps1
+
+      - name: Test prior transfer detection
+        shell: pwsh
+        run: .\tests\Test-PriorTransferDetection.ps1

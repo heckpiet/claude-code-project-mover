@@ -13,6 +13,15 @@ mkdir "$SOURCE_ONE" "$SOURCE_TWO" "$DESTINATION"
 
 write_origin_manifest "$SOURCE_ONE" "$DESTINATION" "copy" "2"
 write_origin_manifest "$SOURCE_TWO" "$DESTINATION" "move" "3"
+METADATA="$TEST_ROOT/metadata"
+mkdir "$METADATA"
+SESSION_ID="55555555-5555-5555-5555-555555555555"
+printf '{"cwd":"%s"}\n' "$SOURCE_ONE" > "$METADATA/$SESSION_ID.jsonl"
+mkdir -p "$DESTINATION/.claude-session-bundle"
+printf '{"sessions":["%s"]}\n' "$SESSION_ID" > "$DESTINATION/.claude-session-bundle/manifest.json"
+PRIOR_MATCHES="$(find_prior_transfers "$TEST_ROOT" "$SOURCE_ONE" "$METADATA")"
+[[ "$PRIOR_MATCHES" == *"same original source path"* ]]
+[[ "$PRIOR_MATCHES" == *"identical session ID"* ]]
 
 python3 - "$DESTINATION/.claude-project-origin.json" "$SOURCE_ONE" "$SOURCE_TWO" <<'PY'
 import json

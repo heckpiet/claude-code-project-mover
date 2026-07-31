@@ -45,6 +45,10 @@ Disables discovery and copying of safe files created by folderless sessions.
 Uses an already existing suggested destination folder for a folderless session
 instead of creating it. Existing files are preserved and never overwritten.
 
+.PARAMETER AllowRepeatedTransfer
+Allows a transfer even when provenance or bundle data at the destination
+indicates that the same project or session was transferred there before.
+
 .PARAMETER Backup
 Creates a ZIP backup before changing files. Interactive mode asks whether a
 backup should be created when this switch is not supplied.
@@ -128,6 +132,9 @@ param(
     [switch]$AdoptExistingProjectFolder,
 
     [Parameter()]
+    [switch]$AllowRepeatedTransfer,
+
+    [Parameter()]
     [switch]$Backup,
 
     [Parameter()]
@@ -160,7 +167,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.7.0'
+$ScriptVersion = '1.8.0'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -1085,6 +1092,52 @@ function Write-ProjectOriginManifest {
     return $manifestPath
 }
 
+function Find-PriorProjectTransfers {
+    param(
+        [Parameter(Mandatory)][string]$SearchRoot,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string[]]$SessionIds
+    )
+
+    if (-not (Test-Path -LiteralPath $SearchRoot -PathType Container)) { return @() }
+    $normalizedSource = Normalize-ProjectPath -Path $SourcePath
+    $matches = New-Object System.Collections.Generic.List[object]
+    foreach ($manifestFile in Get-ChildItem -LiteralPath $SearchRoot -Filter '.claude-project-origin.json' -File -Recurse -ErrorAction SilentlyContinue) {
+        try {
+            $manifest = [System.IO.File]::ReadAllText($manifestFile.FullName) | ConvertFrom-Json -ErrorAction Stop
+            $sourceMatches = @($manifest.transfers | Where-Object {
+                $_.PSObject.Properties.Name -contains 'source' -and
+                $_.source.PSObject.Properties.Name -contains 'path' -and
+                (Normalize-ProjectPath -Path ([string]$_.source.path)) -ieq $normalizedSource
+            }).Count -gt 0
+            if ($sourceMatches) {
+                [void]$matches.Add([pscustomobject]@{
+                    ProjectPath = Split-Path -Parent $manifestFile.FullName
+                    Reason = 'gleicher ursprünglicher Quellpfad'
+                    ManifestPath = $manifestFile.FullName
+                })
+            }
+        }
+        catch { Write-Warning "Herkunftsdatei konnte nicht geprüft werden: $($manifestFile.FullName)" }
+    }
+    foreach ($bundleFile in Get-ChildItem -LiteralPath $SearchRoot -Filter 'manifest.json' -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq '.claude-session-bundle' }) {
+        try {
+            $bundle = [System.IO.File]::ReadAllText($bundleFile.FullName) | ConvertFrom-Json -ErrorAction Stop
+            $duplicates = @($SessionIds | Where-Object { $_ -in @($bundle.sessions) })
+            if ($duplicates.Count -gt 0) {
+                [void]$matches.Add([pscustomobject]@{
+                    ProjectPath = Split-Path -Parent $bundleFile.Directory.FullName
+                    Reason = "$($duplicates.Count) identische Session-ID(s)"
+                    ManifestPath = $bundleFile.FullName
+                })
+            }
+        }
+        catch { Write-Warning "Session-Paket konnte nicht geprüft werden: $($bundleFile.FullName)" }
+    }
+    return @($matches | Sort-Object ProjectPath, Reason -Unique)
+}
+
 Show-ScriptHeader
 
 $projectsDirectory = Get-ClaudeProjectsDirectory
@@ -1253,6 +1306,33 @@ $sessionTransfer = Get-SessionTransferInventory `
     -Project $selectedProject `
     -SourcePath $oldPath `
     -ProjectsDirectory $projectsDirectory
+
+$duplicateSearchRoot = if ($createDedicatedFolder) {
+    Split-Path -Parent $NewPath
+}
+elseif (Test-Path -LiteralPath $NewPath -PathType Container) {
+    Split-Path -Parent $NewPath
+}
+else {
+    Split-Path -Parent $NewPath
+}
+$priorTransfers = @(Find-PriorProjectTransfers -SearchRoot $duplicateSearchRoot -SourcePath $oldPath -SessionIds $sessionTransfer.SessionIds)
+if ($priorTransfers.Count -gt 0) {
+    Write-Host ''
+    Write-Host 'Dieses Projekt oder eine seiner Sessions wurde am Ziel bereits gefunden:' -ForegroundColor Yellow
+    foreach ($match in $priorTransfers) {
+        Write-Host ("  {0} ({1})" -f $match.ProjectPath, $match.Reason) -ForegroundColor Yellow
+    }
+    if (-not $AllowRepeatedTransfer.IsPresent) {
+        if (-not $interactiveDestination -or $Yes.IsPresent) {
+            throw 'Eine frühere Übertragung wurde am Ziel erkannt. Prüfe den vorhandenen Zielordner oder verwende bewusst -AllowRepeatedTransfer.'
+        }
+        if (-not (Read-YesNo -Prompt 'Trotzdem erneut übertragen?' -Default $false)) {
+            Write-Host 'Vorgang abgebrochen.' -ForegroundColor Yellow
+            return
+        }
+    }
+}
 
 Write-Section 'Vorprüfungen'
 $metadataSummary = Get-DirectorySummary -Path $selectedProject.Directory.FullName

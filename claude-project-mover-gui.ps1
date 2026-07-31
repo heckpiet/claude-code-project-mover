@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.7.0'
+$ScriptVersion = '1.8.0'
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
 }
@@ -384,6 +384,38 @@ function Test-DestinationManifest {
         Different = @($different)
         TargetManifest = $targetManifest
     }
+}
+
+function Find-PriorProjectTransfers {
+    param(
+        [Parameter(Mandatory)][string]$SearchRoot,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [Parameter(Mandatory)][string[]]$SessionIds
+    )
+    $normalizedSource = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd('\', '/')
+    $matches = New-Object System.Collections.Generic.List[string]
+    foreach ($file in Get-ChildItem -LiteralPath $SearchRoot -Filter '.claude-project-origin.json' -File -Recurse -ErrorAction SilentlyContinue) {
+        try {
+            $manifest = [System.IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json -ErrorAction Stop
+            $found = @($manifest.transfers | Where-Object {
+                $_.PSObject.Properties.Name -contains 'source' -and
+                $_.source.PSObject.Properties.Name -contains 'path' -and
+                [System.IO.Path]::GetFullPath([string]$_.source.path).TrimEnd('\', '/') -ieq $normalizedSource
+            }).Count -gt 0
+            if ($found) { [void]$matches.Add("$(Split-Path -Parent $file.FullName) – gleicher Quellpfad") }
+        }
+        catch { }
+    }
+    foreach ($file in Get-ChildItem -LiteralPath $SearchRoot -Filter 'manifest.json' -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq '.claude-session-bundle' }) {
+        try {
+            $manifest = [System.IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json -ErrorAction Stop
+            $count = @($SessionIds | Where-Object { $_ -in @($manifest.sessions) }).Count
+            if ($count -gt 0) { [void]$matches.Add("$(Split-Path -Parent $file.Directory.FullName) – $count identische Session-ID(s)") }
+        }
+        catch { }
+    }
+    return @($matches | Sort-Object -Unique)
 }
 
 function Get-AvailableBytes {
@@ -820,6 +852,24 @@ $move.Add_Click({
             }
         }
 
+        $repeatApproved = @{}
+        foreach ($entry in $plan) {
+            $sessionIds = @($entry.Project.JsonlFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) })
+            $prior = @(Find-PriorProjectTransfers -SearchRoot $targetRoot -SourcePath $entry.Project.SourcePath -SessionIds $sessionIds)
+            if ($prior.Count -eq 0) { continue }
+            $answer = [System.Windows.Forms.MessageBox]::Show(
+                $form,
+                "Dieses Projekt oder eine seiner Sessions wurde im Ziel bereits gefunden:`r`n`r`n$($prior -join "`r`n")`r`n`r`nTrotzdem erneut übertragen?",
+                'Frühere Übertragung erkannt',
+                'YesNo',
+                'Warning'
+            )
+            if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) {
+                throw 'Der Vorgang wurde abgebrochen, weil das Projekt am Ziel bereits vorhanden ist.'
+            }
+            $repeatApproved[$entry.Project.SourcePath] = $true
+        }
+
         $summary = ($plan | ForEach-Object {
             $mode = if ($_.CreateDedicatedFolder) {
                 'neuer eigener Projektordner mit Session-Dateien und portablem Bundle'
@@ -898,6 +948,9 @@ $move.Add_Click({
                 }
                 elseif ($entry.AdoptExistingFolder) {
                     $arguments.AdoptExistingProjectFolder = $true
+                }
+                if ($repeatApproved.ContainsKey($entry.Project.SourcePath)) {
+                    $arguments.AllowRepeatedTransfer = $true
                 }
                 if ($backup.Checked) { $arguments.Backup = $true }
                 if (-not $originMetadata.Checked) { $arguments.NoOriginMetadata = $true }

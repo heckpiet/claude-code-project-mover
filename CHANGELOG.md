@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [1.8.0] - 2026-07-31
+
+### Added
+
+- Destination-wide prior-transfer detection using provenance source paths and portable bundle session IDs
+- Explicit duplicate-transfer confirmation in the PowerShell CLI, Windows GUI, and Bash workflow
+- `-AllowRepeatedTransfer` for intentional non-interactive repeated migrations
+- PowerShell 5.1, PowerShell 7, and Bash regression coverage for duplicate detection
+
 ## [1.7.0] - 2026-07-31
 
 ### Added

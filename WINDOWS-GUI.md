@@ -42,6 +42,8 @@ pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-
 
 Beim Klick auf **Ausführen** wird die Quellenprüfung automatisch noch einmal ausgeführt. Ein Projekt mit dem Status **FEHLER** wird nicht verarbeitet.
 
+Nach Auswahl des gemeinsamen Zielordners durchsucht die GUI vorhandene Herkunftsdateien und Session-Pakete. Wurde dasselbe Quellprojekt oder eine identische Session dort bereits übertragen, zeigt sie den gefundenen Projektordner an und verlangt eine ausdrückliche Bestätigung oder bricht ab.
+
 ## Was in der Quelle geprüft wird
 
 Für jedes ausgewählte Projekt kontrolliert das Tool:

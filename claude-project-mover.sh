@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.7.0"
+SCRIPT_VERSION="1.8.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -256,6 +256,42 @@ PY
             "$(date +%s)-$$" "$escaped_destination" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             "$mode" "$escaped_source" "$(hostname)" "${USER:-unknown}" "$escaped_destination" "$SCRIPT_VERSION" "$session_count" > "$manifest_path"
     fi
+}
+
+find_prior_transfers() {
+    local search_root="$1" source_path="$2" metadata_path="$3"
+    command -v python3 >/dev/null 2>&1 || return 0
+    python3 - "$search_root" "$source_path" "$metadata_path" <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+root, source, metadata = map(pathlib.Path, sys.argv[1:])
+source_key = os.path.normcase(os.path.abspath(str(source)))
+sessions = {p.stem for p in metadata.rglob("*.jsonl")}
+matches = set()
+if root.is_dir():
+    for path in root.rglob(".claude-project-origin.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if any(
+                os.path.normcase(os.path.abspath(str(item.get("source", {}).get("path", "")))) == source_key
+                for item in data.get("transfers", [])
+            ):
+                matches.add(f"{path.parent} (same original source path)")
+        except (OSError, TypeError, ValueError):
+            pass
+    for path in root.rglob(".claude-session-bundle/manifest.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            duplicate = sessions.intersection(data.get("sessions", []))
+            if duplicate:
+                matches.add(f"{path.parent.parent} ({len(duplicate)} identical session ID(s))")
+        except (OSError, TypeError, ValueError):
+            pass
+print("\n".join(sorted(matches)))
+PY
 }
 
 # List all projects with numbers
@@ -662,6 +698,19 @@ main() {
 
         break
     done
+
+    local prior_search_root prior_transfers
+    prior_search_root=$(dirname "$new_path")
+    prior_transfers=$(find_prior_transfers "$prior_search_root" "$selected_path" "$PROJECTS_DIR/$selected_folder")
+    if [[ -n "$prior_transfers" ]]; then
+        echo -e "${YELLOW}This project or one of its sessions was already found at the destination:${NC}"
+        printf '%s\n' "$prior_transfers"
+        read -p "Transfer it again anyway? (y/N): " repeat_answer
+        if [[ ! "$repeat_answer" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Operation cancelled.${NC}"
+            exit 0
+        fi
+    fi
 
     echo ""
     echo ""
