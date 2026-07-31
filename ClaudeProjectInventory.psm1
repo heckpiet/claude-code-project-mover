@@ -170,6 +170,49 @@ function Read-ClaudeProjectSessions {
     }
 }
 
+function Get-InventoryArtifactSummary {
+    param(
+        [Parameter(Mandatory)][System.IO.FileInfo[]]$Files,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+    $sourceRoot = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd('\', '/')
+    $safeRoots = New-Object System.Collections.Generic.List[string]
+    $sensitivePaths = New-Object System.Collections.Generic.List[string]
+    foreach ($file in $Files) {
+        foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
+            try { $record = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+            if ($record.PSObject.Properties.Name -notcontains 'message' -or $null -eq $record.message -or
+                $record.message.PSObject.Properties.Name -notcontains 'content') { continue }
+            foreach ($part in @($record.message.content)) {
+                if ($null -eq $part -or $part.PSObject.Properties.Name -notcontains 'type' -or
+                    [string]$part.type -ne 'tool_use' -or $part.PSObject.Properties.Name -notcontains 'name' -or
+                    [string]$part.name -notin @('Write', 'Edit', 'NotebookEdit') -or
+                    $part.PSObject.Properties.Name -notcontains 'input' -or $null -eq $part.input) { continue }
+                $value = $null
+                foreach ($name in @('file_path', 'notebook_path', 'path')) {
+                    if ($part.input.PSObject.Properties.Name -contains $name) { $value = [string]$part.input.$name; if ($value) { break } }
+                }
+                if (-not $value) { continue }
+                try { $absolute = if ([IO.Path]::IsPathRooted($value)) { [IO.Path]::GetFullPath($value) } else { [IO.Path]::GetFullPath((Join-Path $sourceRoot $value)) } } catch { continue }
+                $prefix = $sourceRoot + [IO.Path]::DirectorySeparatorChar
+                if (-not $absolute.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { continue }
+                $first = (($absolute.Substring($prefix.Length)) -split '[\\/]')[0]
+                if ($first -in @('.ssh', '.claude', '.codex', 'AppData') -or $first.StartsWith('.')) {
+                    [void]$sensitivePaths.Add($absolute)
+                }
+                else {
+                    $root = Join-Path $sourceRoot $first
+                    if (Test-Path -LiteralPath $root) { [void]$safeRoots.Add($root) }
+                }
+            }
+        }
+    }
+    return [pscustomobject]@{
+        SafeRoots = @($safeRoots | Select-Object -Unique)
+        SensitivePaths = @($sensitivePaths | Select-Object -Unique)
+    }
+}
+
 function Get-ClaudeProjectInventory {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$ProjectsDirectory)
@@ -187,6 +230,7 @@ function Get-ClaudeProjectInventory {
             ConvertFrom-ClaudeProjectFolderName -FolderName $directory.Name
         }
         $latest = $sessionData.Sessions | Select-Object -First 1
+        $artifactSummary = Get-InventoryArtifactSummary -Files $files -SourcePath $path
         $hasMarker = Test-InventoryProjectMarker -Path $path
         $needsDedicatedFolder = Test-InventoryGeneralPath -Path $path
         $suggestedFolderName = New-InventoryFolderSuggestion `
@@ -211,6 +255,10 @@ function Get-ClaudeProjectInventory {
             NeedsDedicatedFolder = $needsDedicatedFolder
             FolderStatus = if ($needsDedicatedFolder) { 'ORDNER FEHLT' } else { 'Eigener Ordner' }
             SuggestedFolderName = $suggestedFolderName
+            SafeArtifactRoots = $artifactSummary.SafeRoots
+            SafeArtifactCount = $artifactSummary.SafeRoots.Count
+            SensitiveArtifactPaths = $artifactSummary.SensitivePaths
+            SensitiveArtifactCount = $artifactSummary.SensitivePaths.Count
             Validation = $null
         }
     }

@@ -15,6 +15,8 @@ Do not attach real `.jsonl` session files, complete `.claude` directories or unr
 
 The optional `.claude-project-origin.json` manifest records computer name, user name, paths, timestamps, operating system, and migration verification data. It does not record session content, credentials, IP addresses, hardware IDs, or Windows SIDs. Review or disable this manifest before sharing a project outside your organization.
 
+The optional `.claude-session-bundle` intentionally contains a complete portable copy of selected session metadata and may include prompts, responses, tool output, memory, task output, and file-history versions. Treat this directory as confidential. Automatic artifact copying excludes `.ssh`, `.claude`, `.codex`, `AppData`, hidden paths, and paths outside the source project.
+
 ## Reporting a vulnerability
 
 Please report security-sensitive findings privately through GitHub's private vulnerability reporting feature when it is enabled for this repository. Otherwise, open a minimal issue asking the maintainer for a private contact channel without publishing exploit details or private session data.

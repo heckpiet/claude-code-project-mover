@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.5.1**
+Aktuelle Version: **1.6.0**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -106,6 +106,9 @@ Die PowerShell-Engine:
 - bearbeitet die Metadaten zunächst in einer Arbeitskopie
 - validiert die aktualisierten Daten vor der Aktivierung
 - dokumentiert Herkunft und Übertragungshistorie portabel im Zielprojekt
+- sichert vollständige Claude-Sessions portabel in `.claude-session-bundle`
+- übernimmt `memory`, `tool-results`, `file-history`, `scratchpad` und `tasks`, soweit vorhanden
+- erkennt bei ordnerlosen Sessions sichere, von Claude geschriebene Artefaktbereiche und kopiert sie ins Ziel
 - verwendet beim finalen Austausch einen Rollback-Ordner
 - kann ein ZIP-Backup der Claude-Metadaten erstellen
 
@@ -224,6 +227,8 @@ Dieser reine Lesemodus zeigt alle erkannten Projekte nach letzter Aktivität sor
 | `-ProjectFolderName` | Name des mit `-CreateProjectFolder` anzulegenden Projektordners |
 | `-TransferMode` | Dokumentierte Übertragungsart: `Move`, `Copy`, `MetadataOnly` oder `CreateFolder` |
 | `-NoOriginMetadata` | Deaktiviert die Herkunftsdatei im Ziel bewusst |
+| `-NoSessionBundle` | Deaktiviert die portable Kopie von Session-Metadaten und Claude-Hilfsdaten |
+| `-NoArtifactCopy` | Deaktiviert die automatische Übernahme sicherer Session-Artefakte |
 | `-Backup` | Erstellt vor der Änderung ein ZIP-Backup |
 | `-Yes` | Überspringt Rückfragen für automatisierte Aufrufe |
 | `-CheckOnly` | Führt alle Vorprüfungen ohne Änderungen durch |
@@ -244,6 +249,16 @@ Gespeichert werden eine dauerhafte Projekt-ID, Quell- und Zielpfad, Computer- un
 Die Datei wird UTF-8-kodiert geschrieben und auch unter Windows PowerShell 5.1 UTF-8-sicher gelesen. Zielpfade und vorgeschlagene Ordnernamen dürfen daher Umlaute und andere Unicode-Zeichen enthalten.
 
 Nicht gespeichert werden Sitzungsinhalte, IP-Adressen, Hardware-IDs, Windows-SID oder Zugangsdaten. Wer Computer- oder Benutzernamen nicht im Ziel ablegen möchte, kann `-NoOriginMetadata` verwenden oder die entsprechende GUI-Option deaktivieren.
+
+## Portables Session-Paket
+
+Standardmäßig erstellt das Tool im Ziel `.claude-session-bundle`. Darin liegen eine Kopie der migrierten JSONL-Sitzungen einschließlich `memory` und `tool-results`, die zugehörigen Verzeichnisse aus Claude `file-history` sowie vorhandene Session-Verzeichnisse mit `scratchpad` und `tasks`.
+
+Bei ordnerlosen Sitzungen wertet das Tool `Write`, `Edit` und `NotebookEdit` aus. Sichere, vorhandene Bereiche unterhalb der bisherigen Quelle werden mit ihrer Ordnerstruktur in das neue Projekt kopiert. Versteckte Pfade sowie `.ssh`, `.claude`, `.codex`, `AppData` und Pfade außerhalb der Quelle werden nur gemeldet und nicht automatisch übernommen.
+
+Historische Befehle und Werkzeugpfade bleiben unverändert. Nur das JSONL-Feld `cwd`, über das Claude Code das Projekt zuordnet, wird auf den neuen Projektpfad gesetzt.
+
+Für einen anderen Computer enthält das Bundle `Restore-ClaudeSession.ps1` beziehungsweise `restore-claude-session.sh`. Der Restore-Helfer verwendet den tatsächlichen Ordner des kopierten Projekts, installiert die Metadaten im dortigen Claude Home und stellt Dateiverlauf sowie Runtime-Daten wieder her.
 
 ## Speicherplatzprüfung
 
@@ -364,10 +379,15 @@ Ist `fzf` installiert, wird eine Fuzzy-Auswahl verwendet. Andernfalls zeigt das 
 ├── claude-project-mover-gui.ps1
 ├── claude-project-mover.ps1
 ├── claude-project-mover.sh
+├── scripts/
+│   ├── Restore-ClaudeSession.ps1
+│   ├── restore-claude-session.sh
+│   └── Update-Version.ps1
 ├── tests/
 │   ├── Test-FolderSuggestions.ps1
 │   ├── Test-FolderlessMigration.ps1
-│   └── test-origin-manifest.sh
+│   ├── test-origin-manifest.sh
+│   └── test-session-bundle.sh
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── SECURITY.md
