@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.8.1] - 2026-07-31
+
+### Changed
+
+- Interactive PowerShell now offers an editable complete destination-project path when a collection folder was entered
+- Bash offers the corresponding existing child-project path when a collection folder is selected
+- Documentation now explains the system-generated destination proposal
+
 ## [1.8.0] - 2026-07-31
 
 ### Added
