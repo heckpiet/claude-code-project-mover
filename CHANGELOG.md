@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.5.1] - 2026-07-31
+
+### Fixed
+
+- UTF-8 validation of `.claude-project-origin.json` under Windows PowerShell 5.1 when destination paths contain umlauts or other non-ASCII characters
+- Cleanup of a temporary origin-manifest file when writing or validation fails
+- Regression coverage using the real-world folder pattern `server-ssh-zugriff-überprüfen` in PowerShell 7 and Windows PowerShell 5.1
+
 ## [1.5.0] - 2026-07-30
 
 ### Added

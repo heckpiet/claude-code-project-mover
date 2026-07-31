@@ -140,7 +140,7 @@ Vor dem Start prüft das Tool zusätzlich, ob bereits gleichnamige Zielordner ex
 
 ## Nur Claude-Metadaten aktualisieren
 
-Deaktiviere **Projektverzeichnisse physisch verschieben**, wenn die Projektordner bereits manuell an das Ziel verschoben wurden. Die erwarteten Zielordner müssen dann bereits existieren.
+Wähle bei **Übertragungsart** den Eintrag **Nur Metadaten**, wenn die Projektordner bereits manuell an das Ziel verschoben wurden. Die erwarteten Zielordner müssen dann bereits existieren.
 
 Direkter Start in diesem Modus:
 
@@ -157,7 +157,7 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gu
 ## Einschränkungen
 
 - Die Oberfläche benötigt Windows und Windows Forms.
-- Alle ausgewählten Projekte werden unter einen gemeinsamen Zielordner verschoben.
+- Alle ausgewählten Projekte werden unter einem gemeinsamen Zielordner verarbeitet.
 - Bestehende Zielordner werden weder überschrieben noch zusammengeführt.
 - Die Projekte werden nacheinander verarbeitet. Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
 - Bei Netzlaufwerken kann die Ermittlung des freien Speicherplatzes technisch eingeschränkt sein.
