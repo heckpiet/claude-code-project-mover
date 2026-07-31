@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.8.0"
+SCRIPT_VERSION="1.8.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -694,6 +694,18 @@ main() {
             echo -e "${RED}Folder does not exist: $new_path${NC}"
             echo -e "${YELLOW}Make sure you move your project folder first, then run this script.${NC}"
             continue
+        fi
+
+        if [[ "$create_project_folder" != true ]] && ! has_project_marker "$new_path"; then
+            local source_leaf system_target target_answer
+            source_leaf=$(basename "$selected_path")
+            system_target="${new_path%/}/$source_leaf"
+            if [[ -d "$system_target" ]]; then
+                read -p "  The destination looks like a collection folder. Use suggested project path '$system_target'? (Y/n): " target_answer
+                if [[ ! "$target_answer" =~ ^[Nn]$ ]]; then
+                    new_path="$system_target"
+                fi
+            fi
         fi
 
         break

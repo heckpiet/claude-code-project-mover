@@ -49,6 +49,8 @@ Vor der Bestätigung prüft das Tool, ob im Ziel bereits eine Herkunftshistorie 
 
 Der gemeinsame GUI-Zielordner ist ein Sammelordner; die GUI legt darin pro ausgewähltem Projekt einen eigenen Unterordner an. Beim direkten Aufruf von `claude-project-mover.ps1` ist dagegen der vollständige Ziel-Projektordner anzugeben, beispielsweise `D:\Projekte\MeinProjekt` statt nur `D:\Projekte`.
 
+Gibst du im interaktiven CLI trotzdem nur den Sammelordner an, schlägt das System automatisch den vollständigen Pfad mit dem bisherigen Projektnamen vor. Du kannst diesen Vorschlag mit Enter übernehmen oder vor der Prüfung ändern.
+
 Besitzt eine ausgewählte Sitzungsgruppe noch keinen eigenen Projektordner oder liegt sie in einem erkannten Sammelordner mit weiteren Claude-Projekten, fragt die GUI nach einem neuen Ordnernamen. Sie schlägt aus Titel oder Sitzungsinhalt einen Namen vor, legt diesen Ordner unterhalb des gemeinsamen Ziels an und stellt nur die Claude-Sitzungsmetadaten darauf um. Ein allgemeiner Quell- oder Sammelordner wird niemals vollständig verschoben.
 
 Existiert der vorgeschlagene Unterordner schon, kannst du ihn verwenden, einen anderen Namen wählen oder abbrechen. Beim Verwenden bleiben vorhandene Dateien bestehen; das Tool ergänzt nur die zur Session gehörenden sicheren Dateien und Claude-Hilfsdaten.

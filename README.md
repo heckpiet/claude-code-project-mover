@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.8.0**
+Aktuelle Version: **1.8.1**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -186,6 +186,8 @@ Dieser reine Lesemodus durchsucht das konfigurierte Claude-Verzeichnis (`CLAUDE_
 Wird das CLI ohne `-ProjectPath` gestartet, verwendet die Projektauswahl dieselben Inventardaten wie die GUI: letzte Sitzung, Sitzungsanzahl, Kurzbeschreibung und vollständiger Pfad. Damit lässt sich ein unbekannter Ordner vor der Auswahl einordnen.
 
 Beim Zielpfad muss der **vollständige neue Projektordner** angegeben werden, nicht nur ein übergeordneter Sammelordner. Kann das interaktive CLI dort keine typische Projektdatei erkennen, erklärt es die Warnung und lässt unmittelbar einen anderen Pfad eingeben oder die Auswahl bewusst bestätigen. Automatisierte Aufrufe bleiben streng und benötigen in diesem Fall weiterhin `-Force`.
+
+Wird versehentlich nur ein Ziel-Sammelordner eingegeben, bietet das CLI zuerst einen vollständigen Systemvorschlag an. Für ein Quellprojekt `C:\Users\Name\unifi` und den Sammelordner `D:\Claude-Projekte` lautet dieser beispielsweise `D:\Claude-Projekte\unifi`. Der Vorschlag kann übernommen oder direkt bearbeitet werden. Existiert der vorgeschlagene Projektordner noch nicht, weist das CLI darauf hin, dass das echte Projekt zuerst dorthin kopiert oder verschoben werden muss.
 
 Erkennt das interaktive CLI, dass eine Sitzungsgruppe bisher keinen eigenen Projektordner besitzt, fragt es standardmäßig nach der Anlage eines neuen Ordners. Neben bekannten allgemeinen Pfaden erkennt es auch markerlose Sammelordner, wenn darunter weitere Claude-Projekte liegen. In diesem Modus wird ein vorhandener Ziel-Sammelordner plus ein vorgeschlagener Projektname eingegeben. Der allgemeine Quellordner wird nicht verschoben. Das Skript legt den neuen Ordner an, aktualisiert sämtliche gespeicherten Pfadvarianten in den Claude-Metadaten und prüft anschließend Ordner, Metadatenverzeichnis, JSON/JSONL-Daten und `cwd`-Verweise.
 

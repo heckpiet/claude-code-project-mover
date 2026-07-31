@@ -167,7 +167,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = '1.8.0'
+$ScriptVersion = '1.8.1'
 $ScriptAuthor = 'heckpiet'
 $ProjectUrl = 'https://github.com/heckpiet/claude-code-project-mover'
 $InventoryModulePath = Join-Path $PSScriptRoot 'ClaudeProjectInventory.psm1'
@@ -1179,6 +1179,7 @@ else {
 $oldPath = Normalize-ProjectPath -Path $selectedProject.Path
 $interactiveDestination = [string]::IsNullOrWhiteSpace($NewPath)
 $destinationAssessment = $null
+$queuedCandidatePath = $null
 $createDedicatedFolder = $CreateProjectFolder.IsPresent
 $folderlessMigration = $CreateProjectFolder.IsPresent -or $AdoptExistingProjectFolder.IsPresent
 
@@ -1205,7 +1206,13 @@ if ($interactiveDestination) {
 }
 
 while ($null -eq $destinationAssessment) {
-    $candidatePath = if ($interactiveDestination) { Read-Host 'Neuer Projektpfad' } else { $NewPath }
+    $candidatePath = if (-not [string]::IsNullOrWhiteSpace($queuedCandidatePath)) {
+        $value = $queuedCandidatePath
+        $queuedCandidatePath = $null
+        Write-Host "Prüfe vorgeschlagenen Zielpfad: $value" -ForegroundColor Cyan
+        $value
+    }
+    elseif ($interactiveDestination) { Read-Host 'Neuer Projektpfad' } else { $NewPath }
     try {
         if ($createDedicatedFolder) {
             $targetRoot = Normalize-ProjectPath -Path $candidatePath
@@ -1288,6 +1295,26 @@ while ($null -eq $destinationAssessment) {
         Write-Host ''
         Write-Host 'Der Zielpfad wirkt wie ein Sammelordner oder ein noch unvollständiges Projekt.' -ForegroundColor Yellow
         Write-Host 'Beispiel: D:\Projekte\MeinProjekt statt nur D:\Projekte' -ForegroundColor DarkGray
+        $sourceLeaf = Split-Path -Path $oldPath -Leaf
+        if (-not [string]::IsNullOrWhiteSpace($sourceLeaf) -and
+            (Read-YesNo -Prompt 'Soll das System einen vollständigen Ziel-Projektordner vorschlagen?' -Default $true)) {
+            $systemSuggestion = Join-Path $candidateAssessment.Path (ConvertTo-SafeProjectFolderName -Name $sourceLeaf)
+            $enteredSuggestion = Read-Host "Ziel-Projektordner [$systemSuggestion]"
+            $queuedCandidatePath = if ([string]::IsNullOrWhiteSpace($enteredSuggestion)) {
+                $systemSuggestion
+            }
+            else {
+                $enteredSuggestion
+            }
+            if (-not (Test-Path -LiteralPath $queuedCandidatePath -PathType Container)) {
+                Write-Host "Der vorgeschlagene Projektordner existiert noch nicht: $queuedCandidatePath" -ForegroundColor Yellow
+                Write-Host 'Verschiebe oder kopiere den Projektordner zuerst dorthin oder gib einen vorhandenen Ordner an.' -ForegroundColor DarkGray
+                $queuedCandidatePath = $null
+            }
+            else {
+                continue
+            }
+        }
         if (-not (Read-YesNo -Prompt 'Diesen Ordner trotzdem als Projektpfad verwenden?' -Default $false)) {
             Write-Host 'Bitte einen anderen Ziel-Projektordner eingeben.' -ForegroundColor Cyan
             continue
