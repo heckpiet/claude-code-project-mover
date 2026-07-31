@@ -11,6 +11,7 @@ import os
 import pathlib
 import shutil
 import sys
+import tempfile
 
 bundle, config, project = map(pathlib.Path, sys.argv[1:])
 with (bundle / "manifest.json").open(encoding="utf-8") as stream:
@@ -44,6 +45,13 @@ for name in ("file-history",):
         (config / name).mkdir(parents=True, exist_ok=True)
         for item in source.iterdir():
             shutil.copytree(item, config / name / item.name, dirs_exist_ok=True)
+runtime = bundle / "runtime"
+if runtime.is_dir():
+    runtime_target = pathlib.Path(tempfile.gettempdir()) / "claude" / folder
+    runtime_target.mkdir(parents=True, exist_ok=True)
+    for item in runtime.iterdir():
+        if item.is_dir():
+            shutil.copytree(item, runtime_target / item.name, dirs_exist_ok=True)
 print(f"Claude session restored for: {project}")
 print(f"Metadata: {destination}")
 PY

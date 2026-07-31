@@ -11,6 +11,7 @@ on:
       - '**.sh'
       - '**.cmd'
       - 'VERSION'
+      - 'README.md'
       - '.github/workflows/powershell.yml'
   pull_request:
     paths:
@@ -19,6 +20,7 @@ on:
       - '**.sh'
       - '**.cmd'
       - 'VERSION'
+      - 'README.md'
       - '.github/workflows/powershell.yml'
   workflow_dispatch:
 
@@ -65,6 +67,11 @@ jobs:
           }
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+          $gui = Get-Content -LiteralPath claude-project-mover-gui.ps1 -Raw
+          $guiMatch = [regex]::Match($gui, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
+          if (-not $guiMatch.Success -or $guiMatch.Groups[1].Value -cne $version) {
+            throw "claude-project-mover-gui.ps1 does not contain version '$version'."
           }
           $bash = Get-Content -LiteralPath claude-project-mover.sh -Raw
           if ($bash -notmatch "(?m)^SCRIPT_VERSION=`"$([regex]::Escape($version))`"\s*$") {
@@ -159,6 +166,11 @@ jobs:
           }
           if ($match.Groups[1].Value -cne $version) {
             throw "VERSION is '$version' but claude-project-mover.ps1 contains '$($match.Groups[1].Value)'."
+          }
+          $gui = Get-Content -LiteralPath claude-project-mover-gui.ps1 -Raw
+          $guiMatch = [regex]::Match($gui, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
+          if (-not $guiMatch.Success -or $guiMatch.Groups[1].Value -cne $version) {
+            throw "claude-project-mover-gui.ps1 does not contain version '$version'."
           }
           $bash = Get-Content -LiteralPath claude-project-mover.sh -Raw
           if ($bash -notmatch "(?m)^SCRIPT_VERSION=`"$([regex]::Escape($version))`"\s*$") {

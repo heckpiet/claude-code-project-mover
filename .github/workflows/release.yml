@@ -1,0 +1,64 @@
+name: Release package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'VERSION'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Build release archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "VERSION is not stable Semantic Versioning: ${version}" >&2
+            exit 1
+          fi
+          expected_tag="v${version}"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && ( "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${expected_tag}" ) ]]; then
+            echo "Release must run from tag ${expected_tag}; current ref is ${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+
+      - name: Build ZIP and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          archive="claude-code-project-mover-v${version}.zip"
+          git archive --format=zip --prefix="claude-code-project-mover-v${version}/" --output="${archive}" HEAD
+          unzip -t "${archive}"
+          sha256sum "${archive}" > "${archive}.sha256"
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          archive="claude-code-project-mover-v${version}.zip"
+          gh release create "${GITHUB_REF_NAME}" \
+            "${archive}" \
+            "${archive}.sha256" \
+            --verify-tag \
+            --title "Claude Code Project Mover ${GITHUB_REF_NAME}" \
+            --generate-notes
