@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.6.0'
+$ScriptVersion = '1.7.0'
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
 }
@@ -751,6 +751,7 @@ $move.Add_Click({
         foreach ($item in $selectedItems) {
             $project = $item.Tag
             $dedicatedFolder = $project.NeedsDedicatedFolder
+            $adoptExistingFolder = $false
             $leaf = Split-Path -Path $project.SourcePath -Leaf
             if ($dedicatedFolder) {
                 $answer = [System.Windows.Forms.MessageBox]::Show(
@@ -764,16 +765,36 @@ $move.Add_Click({
                     throw 'Der Vorgang wurde abgebrochen. Für ordnerlose Sitzungsgruppen ist ein eigener Ziel-Projektordner erforderlich.'
                 }
                 $defaultName = $project.SuggestedFolderName
-                $leaf = [Microsoft.VisualBasic.Interaction]::InputBox(
-                    'Name des neuen Projektordners:',
-                    'Projektordner benennen',
-                    $defaultName
-                )
-                $leaf = ConvertTo-SafeProjectFolderName -Name $leaf
-                if ([string]::IsNullOrWhiteSpace($leaf)) { throw 'Es wurde kein gültiger Projektordnername angegeben.' }
+                while ($true) {
+                    $leaf = [Microsoft.VisualBasic.Interaction]::InputBox(
+                        'Name des neuen Projektordners:',
+                        'Projektordner benennen',
+                        $defaultName
+                    )
+                    $leaf = ConvertTo-SafeProjectFolderName -Name $leaf
+                    if ([string]::IsNullOrWhiteSpace($leaf)) { throw 'Es wurde kein gültiger Projektordnername angegeben.' }
+                    $destination = Join-Path $targetRoot $leaf
+                    if (-not (Test-Path -LiteralPath $destination)) { break }
+                    $conflict = [System.Windows.Forms.MessageBox]::Show(
+                        $form,
+                        "Der vorgeschlagene Projektordner existiert bereits:`r`n$destination`r`n`r`nJa: vorhandenen Ordner verwenden`r`nNein: anderen Namen wählen`r`nAbbrechen: Vorgang beenden",
+                        'Projektordner bereits vorhanden',
+                        'YesNoCancel',
+                        'Question'
+                    )
+                    if ($conflict -eq [System.Windows.Forms.DialogResult]::Yes) {
+                        $adoptExistingFolder = $true
+                        break
+                    }
+                    if ($conflict -eq [System.Windows.Forms.DialogResult]::Cancel) {
+                        throw 'Der Vorgang wurde abgebrochen.'
+                    }
+                    $defaultName = $leaf + '-2'
+                }
             }
             $destination = Join-Path $targetRoot $leaf
-            if ($dedicatedFolder -or $selectedOperation -in @('Verschieben', 'Kopieren')) {
+            if (($dedicatedFolder -and -not $adoptExistingFolder) -or
+                (-not $dedicatedFolder -and $selectedOperation -in @('Verschieben', 'Kopieren'))) {
                 if (Test-Path -LiteralPath $destination) { throw "Ziel existiert bereits: $destination" }
             }
             elseif (-not (Test-Path -LiteralPath $destination -PathType Container)) {
@@ -785,7 +806,9 @@ $move.Add_Click({
                 Destination = $destination
                 TargetRoot = $targetRoot
                 FolderName = $leaf
-                CreateDedicatedFolder = $dedicatedFolder
+                CreateDedicatedFolder = ($dedicatedFolder -and -not $adoptExistingFolder)
+                AdoptExistingFolder = $adoptExistingFolder
+                FolderlessSession = $dedicatedFolder
             })
         }
 
@@ -798,7 +821,15 @@ $move.Add_Click({
         }
 
         $summary = ($plan | ForEach-Object {
-            $mode = if ($_.CreateDedicatedFolder) { 'neuer eigener Projektordner; nur Sitzungsmetadaten werden umgestellt' } else { "$($_.Project.Validation.Manifest.FileCount) Dateien, $(Format-Bytes $_.Project.Validation.Manifest.Bytes)" }
+            $mode = if ($_.CreateDedicatedFolder) {
+                'neuer eigener Projektordner mit Session-Dateien und portablem Bundle'
+            }
+            elseif ($_.AdoptExistingFolder) {
+                'vorhandener Projektordner wird verwendet und um Session-Dateien sowie Bundle ergänzt'
+            }
+            else {
+                "$($_.Project.Validation.Manifest.FileCount) Dateien, $(Format-Bytes $_.Project.Validation.Manifest.Bytes)"
+            }
             "$($_.Project.SourcePath)`r`n  -> $($_.Destination)`r`n  $mode"
         }) -join "`r`n`r`n"
         $answer = [System.Windows.Forms.MessageBox]::Show($form, "Geprüfter Verschiebeplan:`r`n`r`n$summary`r`n`r`nFortfahren?", 'Verschieben bestätigen', 'YesNo', 'Question')
@@ -816,8 +847,13 @@ $move.Add_Click({
             try {
                 $status.Text = "$selectedOperation`: $source"
                 [System.Windows.Forms.Application]::DoEvents()
-                if ($entry.CreateDedicatedFolder) {
-                    $status.Text = "Lege eigenen Projektordner für $source an"
+                if ($entry.CreateDedicatedFolder -or $entry.AdoptExistingFolder) {
+                    $status.Text = if ($entry.CreateDedicatedFolder) {
+                        "Lege eigenen Projektordner für $source an"
+                    }
+                    else {
+                        "Übernehme vorhandenen Projektordner für $source"
+                    }
                 }
                 elseif ($selectedOperation -eq 'Verschieben') {
                     Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
@@ -843,6 +879,9 @@ $move.Add_Click({
                 $arguments.TransferMode = if ($entry.CreateDedicatedFolder) {
                     'CreateFolder'
                 }
+                elseif ($entry.AdoptExistingFolder) {
+                    'MetadataOnly'
+                }
                 elseif ($selectedOperation -eq 'Verschieben') {
                     'Move'
                 }
@@ -856,6 +895,9 @@ $move.Add_Click({
                     $arguments.NewPath = $entry.TargetRoot
                     $arguments.CreateProjectFolder = $true
                     $arguments.ProjectFolderName = $entry.FolderName
+                }
+                elseif ($entry.AdoptExistingFolder) {
+                    $arguments.AdoptExistingProjectFolder = $true
                 }
                 if ($backup.Checked) { $arguments.Backup = $true }
                 if (-not $originMetadata.Checked) { $arguments.NoOriginMetadata = $true }

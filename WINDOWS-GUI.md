@@ -109,9 +109,11 @@ Bei der Zielauswahl gibt es einen bewussten Unterschied: Die GUI erwartet einen 
 
 ### Sitzungsgruppe ohne eigenen Projektordner
 
-Fehlen im bisherigen Pfad typische Projektmerkmale, fragt die GUI, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
+Fehlen im bisherigen Pfad typische Projektmerkmale und enthält er weitere bekannte Claude-Projekte, kennzeichnet die GUI ihn als **SAMMELORDNER**. Sie fragt dann, ob am Ziel ein eigener Projektordner angelegt werden soll. Nach Eingabe eines eindeutigen Namens wird ein leerer Zielordner erstellt und die komplette Claude-Sitzungsgruppe dorthin umgebunden. Der bisherige allgemeine Ordner wird nicht physisch verschoben. Die Nachprüfung kontrolliert den neuen Ordner, das neue Claude-Metadatenverzeichnis, alle JSON/JSONL-Datensätze und die aktualisierten `cwd`-Werte.
 
 Die Projektliste zeigt dafür zusätzlich **Ordnerstatus** und **Zielordner-Vorschlag**. Der Namensdialog ist mit dem Vorschlag aus KI-Titel oder erstem sinnvollen Sitzungsinhalt vorausgefüllt. Zeitstempel, Sitzungsanzahl, Beschreibung, Pfad und Vorschlag bleiben gleichzeitig sichtbar, damit ähnliche Sitzungsgruppen leichter unterschieden werden können.
+
+Existiert der vorgeschlagene Ziel-Unterordner bereits, bietet die GUI drei sichere Wege an: vorhandenen Ordner verwenden, einen anderen Namen wählen oder abbrechen. Beim Verwenden wird der Sammelordner nicht verschoben und der bestehende Zielinhalt nicht gelöscht; Session-Dateien, Bundle und Herkunftsmetadaten werden kontrolliert ergänzt.
 
 ## Herkunftsdatei im Ziel
 
@@ -165,7 +167,7 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\claude-project-mover-gu
 
 - Die Oberfläche benötigt Windows und Windows Forms.
 - Alle ausgewählten Projekte werden unter einem gemeinsamen Zielordner verarbeitet.
-- Bestehende Zielordner werden weder überschrieben noch zusammengeführt.
+- Bestehende Zielordner werden nur nach ausdrücklicher Bestätigung übernommen; vorhandene Dateien werden dabei nicht überschrieben.
 - Die Projekte werden nacheinander verarbeitet. Bereits erfolgreich abgeschlossene Projekte bleiben verschoben, wenn ein späteres Projekt fehlschlägt.
 - Bei Netzlaufwerken kann die Ermittlung des freien Speicherplatzes technisch eingeschränkt sein.
 - Die Dateiprüfung vergleicht Pfade, Anzahl und Dateigrößen. Sie berechnet bewusst nicht für jede Datei einen kryptografischen Hash, da dies bei großen Projekten den Ablauf erheblich verlangsamen würde.

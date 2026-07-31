@@ -104,6 +104,14 @@ jobs:
         shell: powershell
         run: .\tests\Test-FolderSuggestions.ps1
 
+      - name: Test collection folder detection
+        shell: powershell
+        run: .\tests\Test-CollectionFolderDetection.ps1
+
+      - name: Test existing folder adoption
+        shell: powershell
+        run: .\tests\Test-AdoptExistingFolder.ps1
+
   powershell-7:
     name: PowerShell 7
     runs-on: windows-latest
@@ -181,3 +189,11 @@ jobs:
       - name: Test smart folder suggestions
         shell: pwsh
         run: .\tests\Test-FolderSuggestions.ps1
+
+      - name: Test collection folder detection
+        shell: pwsh
+        run: .\tests\Test-CollectionFolderDetection.ps1
+
+      - name: Test existing folder adoption
+        shell: pwsh
+        run: .\tests\Test-AdoptExistingFolder.ps1

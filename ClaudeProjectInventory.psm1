@@ -217,7 +217,7 @@ function Get-ClaudeProjectInventory {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$ProjectsDirectory)
 
-    $projects = foreach ($directory in Get-ChildItem -LiteralPath $ProjectsDirectory -Directory -ErrorAction Stop) {
+    $projects = @(foreach ($directory in Get-ChildItem -LiteralPath $ProjectsDirectory -Directory -ErrorAction Stop) {
         if ($directory.Name -match '^(BACKUP__|\.MIGRATION__|\.ROLLBACK__)') { continue }
         $files = @(Get-ChildItem -LiteralPath $directory.FullName -File -Filter '*.jsonl' -Recurse -ErrorAction SilentlyContinue)
         if ($files.Count -eq 0) { continue }
@@ -261,6 +261,24 @@ function Get-ClaudeProjectInventory {
             SensitiveArtifactCount = $artifactSummary.SensitivePaths.Count
             Validation = $null
         }
+    })
+
+    foreach ($project in $projects) {
+        try { $normalized = [System.IO.Path]::GetFullPath($project.Path).TrimEnd('\', '/') } catch { continue }
+        $prefix = $normalized + [System.IO.Path]::DirectorySeparatorChar
+        $containsKnownProject = @($projects | Where-Object {
+            if ($_ -eq $project) { return $false }
+            try {
+                $other = [System.IO.Path]::GetFullPath($_.Path).TrimEnd('\', '/')
+                return $other.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
+            }
+            catch { return $false }
+        }).Count -gt 0
+        if (-not $project.HasProjectMarker -and $containsKnownProject) {
+            $project.NeedsDedicatedFolder = $true
+            $project.FolderStatus = 'SAMMELORDNER'
+        }
+        $project | Add-Member -NotePropertyName ContainsKnownProject -NotePropertyValue $containsKnownProject -Force
     }
 
     return @($projects | Sort-Object LastSession -Descending)

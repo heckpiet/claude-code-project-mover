@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.6.0"
+SCRIPT_VERSION="1.7.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"
@@ -150,6 +150,26 @@ is_general_source_path() {
        ( -n "${OneDrive:-}" && "$path" == "${OneDrive%/}" ) ]]
 }
 
+contains_known_child_project() {
+    local parent="${1%/}"
+    local dir folder_name candidate
+    for dir in "$PROJECTS_DIR"/-*/; do
+        [[ -d "$dir" ]] || continue
+        folder_name=$(basename "$dir")
+        candidate=$(get_readable_path "$folder_name")
+        candidate="${candidate%/}"
+        if [[ "$candidate" != "$parent" && "$candidate" == "$parent/"* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+needs_dedicated_project_folder() {
+    local path="$1"
+    is_general_source_path "$path" || { ! has_project_marker "$path" && contains_known_child_project "$path"; }
+}
+
 smart_folder_suggestion() {
     local description="$1"
     local timestamp="$2"
@@ -251,8 +271,8 @@ list_projects() {
             details=$(get_session_details "$dir")
             IFS=$'\t' read -r timestamp session_count description <<< "$details"
             local folder_status="Eigener Ordner" suggestion="-"
-            if is_general_source_path "$readable_path"; then
-                folder_status="ORDNER FEHLT"
+            if needs_dedicated_project_folder "$readable_path"; then
+                folder_status="SAMMELORDNER"
                 suggestion=$(smart_folder_suggestion "$description" "$timestamp" "$folder_name")
             fi
             printf "${BLUE}%3d)${NC} %-17s %-9s %-14s %-30.30s %-38.38s %s\n" \
@@ -565,6 +585,7 @@ main() {
 
     local selected_path=$(get_readable_path "$selected_folder")
     local create_project_folder=false
+    local adopt_existing_folder=false
     local selected_details selected_timestamp selected_count selected_description suggested_folder_name
     selected_details=$(get_session_details "$PROJECTS_DIR/$selected_folder")
     IFS=$'\t' read -r selected_timestamp selected_count selected_description <<< "$selected_details"
@@ -576,8 +597,8 @@ main() {
     echo -e "${BLUE}───────────────────────────────${NC}"
     echo -e "  Current: ${YELLOW}$selected_path${NC}"
 
-    if is_general_source_path "$selected_path"; then
-        echo -e "${YELLOW}No dedicated project folder was detected for this session group.${NC}"
+    if needs_dedicated_project_folder "$selected_path"; then
+        echo -e "${YELLOW}No dedicated project folder was detected; the path appears to be a collection folder.${NC}"
         read -p "Create a dedicated project folder at the destination? (Y/n): " create_answer
         if [[ ! "$create_answer" =~ ^[Nn]$ ]]; then
             create_project_folder=true
@@ -597,8 +618,22 @@ main() {
             fi
             new_path="${target_root%/}/$project_folder_name"
             if [[ -e "$new_path" ]]; then
-                echo -e "${RED}Destination already exists: $new_path${NC}"
-                continue
+                echo -e "${YELLOW}The suggested project folder already exists: $new_path${NC}"
+                read -p "Use existing folder [u], choose another name [r], or cancel [c]? " conflict_answer
+                case "$conflict_answer" in
+                    [Uu])
+                        create_project_folder=false
+                        adopt_existing_folder=true
+                        ;;
+                    [Rr])
+                        suggested_folder_name="${project_folder_name}-2"
+                        continue
+                        ;;
+                    *)
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                        exit 0
+                        ;;
+                esac
             fi
         else
             read -p "  New path: " new_path
@@ -673,7 +708,11 @@ main() {
         return 1
     fi
     local transfer_mode="metadata-only"
-    if [[ "$create_project_folder" == true ]]; then transfer_mode="create-folder"; fi
+    if [[ "$create_project_folder" == true ]]; then
+        transfer_mode="create-folder"
+    elif [[ "$adopt_existing_folder" == true ]]; then
+        transfer_mode="adopt-folder"
+    fi
     write_origin_manifest "$selected_path" "$new_path" "$transfer_mode" "$selected_count"
     echo -e "${GREEN}Origin metadata: $new_path/.claude-project-origin.json${NC}"
     session_bundle=$(create_session_bundle "$new_metadata_path" "$selected_path" "$new_path" "$selected_folder")

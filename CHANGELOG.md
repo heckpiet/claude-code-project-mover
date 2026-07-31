@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.7.0] - 2026-07-31
+
+### Added
+
+- Structural collection-folder detection for markerless paths that contain other known Claude projects
+- Guided collision handling in PowerShell CLI, Windows GUI, and Bash: use the existing folder, choose another smart name, or cancel
+- `-AdoptExistingProjectFolder` for intentional non-interactive integration into an existing target folder
+- Regression tests for collection detection and preservation of existing destination content
+
+### Changed
+
+- Folderless-session transfers use smart names from the session title or content even when the source is not a standard profile folder
+- Windows GUI prevents physical movement of a collection folder when an existing dedicated target folder is adopted
+- Windows and cross-platform documentation now describes collection folders and safe conflict handling
+
 ## [1.6.0] - 2026-07-31
 
 ### Added
