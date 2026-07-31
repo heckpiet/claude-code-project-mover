@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.8.3'
+$ScriptVersion = '1.8.4'
 if ($env:OS -ne 'Windows_NT') {
     throw 'Die native Oberfläche benötigt Windows. Auf anderen Plattformen bitte claude-project-mover.ps1 verwenden.'
 }
@@ -460,18 +460,9 @@ function Set-ButtonStyle {
 $configPath = Get-ClaudeConfigPath
 $projectsPath = Join-Path $configPath 'projects'
 $coreScript = Join-Path $PSScriptRoot 'claude-project-mover.ps1'
-$versionFile = Join-Path $PSScriptRoot 'VERSION'
-$projectVersion = if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
-    (Get-Content -LiteralPath $versionFile -Raw).Trim()
-}
-elseif (Test-Path -LiteralPath $coreScript -PathType Leaf) {
-    $coreContent = [System.IO.File]::ReadAllText($coreScript)
-    $coreVersionMatch = [regex]::Match($coreContent, "(?m)^\`$ScriptVersion = '([^']+)'\s*$")
-    if ($coreVersionMatch.Success) { $coreVersionMatch.Groups[1].Value } else { $ScriptVersion }
-}
-else {
-    $ScriptVersion
-}
+# The running GUI's embedded version is authoritative. A separately downloaded
+# stale VERSION or core file must never make a newer GUI identify as older.
+$projectVersion = $ScriptVersion
 if (-not (Test-Path -LiteralPath $projectsPath -PathType Container)) { throw "Claude-Code-Projektverzeichnis nicht gefunden: '$projectsPath'." }
 if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) { throw "Migrationsskript nicht gefunden: '$coreScript'." }
 $projects = @(Get-ClaudeProjects -ProjectsDirectory $projectsPath)

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="1.8.3"
+SCRIPT_VERSION="1.8.4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then
     FILE_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION")"

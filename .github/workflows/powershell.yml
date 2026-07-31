@@ -116,6 +116,10 @@ jobs:
         shell: powershell
         run: .\tests\Test-PriorTransferDetection.ps1
 
+      - name: Test GUI version source
+        shell: powershell
+        run: .\tests\Test-GuiVersionSource.ps1
+
   powershell-7:
     name: PowerShell 7
     runs-on: windows-latest
@@ -205,3 +209,7 @@ jobs:
       - name: Test prior transfer detection
         shell: pwsh
         run: .\tests\Test-PriorTransferDetection.ps1
+
+      - name: Test GUI version source
+        shell: pwsh
+        run: .\tests\Test-GuiVersionSource.ps1

@@ -8,7 +8,7 @@
 
 Verschiebt Claude-Code-Projekte an einen neuen Speicherort und aktualisiert die zugehörigen Sitzungs- und Projektmetadaten, damit vorhandene Unterhaltungen und Projektkontexte weiter genutzt werden können.
 
-Aktuelle Version: **1.8.3**
+Aktuelle Version: **1.8.4**
 ## Projektfokus: Windows
 
 Dieses Repository ist die **Windows-orientierte Weiterentwicklung** des Claude Code Project Movers. Entwicklung, Bedienkonzept, Dokumentation und Qualitätssicherung konzentrieren sich vorrangig auf Windows 10/11, Windows PowerShell 5.1, PowerShell 7 und die native Windows-Forms-Oberfläche.
@@ -311,7 +311,7 @@ Das Projekt verwendet [Semantic Versioning](https://semver.org/lang/de/) im Form
 - `MINOR`: neue, abwärtskompatible Funktionen
 - `PATCH`: abwärtskompatible Fehlerbehebungen
 
-Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in `claude-project-mover.ps1`, `claude-project-mover.sh` und `Start-ClaudeProjectMover.cmd` eingebettet, damit sie auch bei einem direkten Aufruf korrekt angezeigt wird. Die GitHub-Actions-Prüfung schlägt fehl, sobald ein Einstiegspunkt oder die README davon abweicht.
+Die Datei `VERSION` ist die zentrale Projektversion. Dieselbe Version ist in GUI, `claude-project-mover.ps1`, `claude-project-mover.sh` und `Start-ClaudeProjectMover.cmd` eingebettet, damit sie auch bei einem direkten Aufruf korrekt angezeigt wird. Die laufende GUI zeigt immer ihre eigene eingebettete Version an; eine danebenliegende veraltete `VERSION`-Datei kann sie nicht zurückstufen. Die GitHub-Actions-Prüfung schlägt fehl, sobald ein Einstiegspunkt oder die README abweicht.
 
 GUI und CLI beziehen ihre Projekt- und Sitzungsübersicht gemeinsam aus `ClaudeProjectInventory.psm1`. Änderungen an Erkennung, Zeitstempeln oder Beschreibungen gelten dadurch für beide Oberflächen.
 
