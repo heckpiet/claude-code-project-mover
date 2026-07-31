@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [1.8.4] - 2026-07-31
+
+### Fixed
+
+- The Windows GUI now uses its embedded version for the title and header, preventing a stale neighboring `VERSION` file from downgrading the displayed version
+- Regression coverage ensures external version files cannot override the running GUI version
+
 ## [1.8.3] - 2026-07-31
 
 ### Changed
